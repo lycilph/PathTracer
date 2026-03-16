@@ -1,9 +1,13 @@
-﻿using FluentAssertions;
+﻿using Core.Materials;
+using FluentAssertions;
 
 namespace Core.Tests;
 
 public class HitRecordTests
 {
+    // At the top of each test class, add a shared dummy material:
+    private static readonly IMaterial DummyMat = new Lambertian(Vector3.One);
+
     [Fact]
     public void Create_RayHitsOutside_FrontFaceIsTrue()
     {
@@ -12,7 +16,7 @@ public class HitRecordTests
         var ray = new Ray(new Vector3(0, 0, -5), Vector3.UnitZ);
         var outwardNormal = -Vector3.UnitZ;
 
-        var hit = HitRecord.Create(t: 5, point: Vector3.Zero, ray, outwardNormal);
+        var hit = HitRecord.Create(t: 5, point: Vector3.Zero, ray, outwardNormal, DummyMat);
 
         hit.FrontFace.Should().BeTrue();
         hit.Normal.Should().Be(-Vector3.UnitZ); // normal opposes the ray
@@ -26,7 +30,7 @@ public class HitRecordTests
         var ray = new Ray(new Vector3(0, 0, -1), Vector3.UnitZ);
         var outwardNormal = Vector3.UnitZ;
 
-        var hit = HitRecord.Create(t: 1, point: Vector3.Zero, ray, outwardNormal);
+        var hit = HitRecord.Create(t: 1, point: Vector3.Zero, ray, outwardNormal, DummyMat);
 
         hit.FrontFace.Should().BeFalse();
         hit.Normal.Should().Be(-Vector3.UnitZ); // normal still opposes the ray
@@ -38,8 +42,8 @@ public class HitRecordTests
         // For any hit, Dot(ray.Direction, hit.Normal) must be negative
         var ray = new Ray(new Vector3(0, 0, -5), Vector3.UnitZ);
 
-        var hitFront = HitRecord.Create(5, Vector3.Zero, ray, -Vector3.UnitZ);
-        var hitBack = HitRecord.Create(5, Vector3.Zero, ray, Vector3.UnitZ);
+        var hitFront = HitRecord.Create(5, Vector3.Zero, ray, -Vector3.UnitZ, DummyMat);
+        var hitBack = HitRecord.Create(5, Vector3.Zero, ray, Vector3.UnitZ, DummyMat);
 
         Vector3.Dot(ray.Direction, hitFront.Normal).Should().BeLessThan(0);
         Vector3.Dot(ray.Direction, hitBack.Normal).Should().BeLessThan(0);
@@ -51,7 +55,7 @@ public class HitRecordTests
         var ray = new Ray(Vector3.Zero, Vector3.UnitX);
         var point = new Vector3(3, 0, 0);
 
-        var hit = HitRecord.Create(t: 3, point, ray, -Vector3.UnitX);
+        var hit = HitRecord.Create(t: 3, point, ray, -Vector3.UnitX, DummyMat);
 
         hit.T.Should().Be(3);
         hit.Point.Should().Be(point);

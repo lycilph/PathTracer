@@ -1,11 +1,15 @@
-﻿using FluentAssertions;
+﻿using Core.Materials;
+using FluentAssertions;
 
 namespace Core.Tests;
 
 public class SphereTests
 {
+    // At the top of each test class, add a shared dummy material:
+    private static readonly IMaterial DummyMat = new Lambertian(Vector3.One);
+
     // Sphere at origin, radius 1 — a convenient test fixture
-    private static readonly Sphere UnitSphere = new(Vector3.Zero, 1.0);
+    private static readonly Sphere UnitSphere = new(Vector3.Zero, 1.0, DummyMat);
 
     [Fact]
     public void Hit_RayStraightAtSphere_ReturnsHit()

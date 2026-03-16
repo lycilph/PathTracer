@@ -5,10 +5,12 @@
 /// </summary>
 /// <param name="Centre">Centre of the sphere in world space.</param>
 /// <param name="Radius">Radius of the sphere in world units.</param>
-public sealed class Sphere(Vector3 Centre, double Radius) : IHittable
+/// <param name="Material">The material the sphere will be rendered with.</param>
+public sealed class Sphere(Vector3 Centre, double Radius, IMaterial Material) : IHittable
 {
     public Vector3 Centre { get; } = Centre;
     public double Radius { get; } = Radius;
+    public IMaterial Material { get; } = Material;
 
     /// <inheritdoc/>
     /// <remarks>
@@ -44,7 +46,7 @@ public sealed class Sphere(Vector3 Centre, double Radius) : IHittable
         var point = ray.At(t);
         var outwardNormal = (point - Centre) / Radius;  // already unit length
 
-        hit = HitRecord.Create(t, point, ray, outwardNormal);
+        hit = HitRecord.Create(t, point, ray, outwardNormal, Material);
         return true;
     }
 }

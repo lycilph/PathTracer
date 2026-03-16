@@ -7,11 +7,13 @@
 /// <param name="Corner">One corner of the quad in world space.</param>
 /// <param name="Edge1">First edge vector (world units). Not required to be unit length.</param>
 /// <param name="Edge2">Second edge vector (world units). Not required to be unit length.</param>
-public sealed class Quad(Vector3 Corner, Vector3 Edge1, Vector3 Edge2) : IHittable
+/// <param name="Material">The material the quad will be rendered with.</param>
+public sealed class Quad(Vector3 Corner, Vector3 Edge1, Vector3 Edge2, IMaterial Material) : IHittable
 {
     public Vector3 Corner { get; } = Corner;
     public Vector3 Edge1 { get; } = Edge1;
     public Vector3 Edge2 { get; } = Edge2;
+    public IMaterial Material { get; } = Material;
 
     /// <summary>Outward-facing unit normal, computed once at construction.</summary>
     public Vector3 Normal { get; } = Vector3.Cross(Edge1, Edge2).Normalize();
@@ -51,7 +53,7 @@ public sealed class Quad(Vector3 Corner, Vector3 Edge1, Vector3 Edge2) : IHittab
             return false;
 
         var point = ray.At(t);
-        hit = HitRecord.Create(t, point, ray, Normal);
+        hit = HitRecord.Create(t, point, ray, Normal, Material);
         return true;
     }
 }

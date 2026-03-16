@@ -1,15 +1,21 @@
-﻿using FluentAssertions;
+﻿using Core.Materials;
+using FluentAssertions;
 
 namespace Core.Tests;
 
 public class QuadTests
 {
+
+    // At the top of each test class, add a shared dummy material:
+    private static readonly IMaterial DummyMat = new Lambertian(Vector3.One);
+
     // A 2×2 quad in the XY plane centred at origin, facing +Z
     // Corner at (-1,-1,0), edges along +X and +Y
     private static readonly Quad XyQuad = new(
         Corner: new Vector3(-1, -1, 0),
         Edge1: new Vector3(2, 0, 0),
-        Edge2: new Vector3(0, 2, 0));
+        Edge2: new Vector3(0, 2, 0),
+        DummyMat);
 
     [Fact]
     public void Hit_RayThroughCentre_ReturnsHit()

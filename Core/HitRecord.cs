@@ -23,6 +23,9 @@ public readonly record struct HitRecord
     /// False if the ray was travelling inside the surface.
     /// </summary>
     public bool FrontFace { get; init; }
+    
+    /// <summary>The material of the surface that was hit.</summary>
+    public IMaterial Material { get; init; }
 
     /// <summary>
     /// Constructs a HitRecord, automatically orienting the normal against the ray.
@@ -33,7 +36,7 @@ public readonly record struct HitRecord
     /// <param name="outwardNormal">
     /// The geometric outward-facing normal of the surface. Must be unit length.
     /// </param>
-    public static HitRecord Create(double t, Vector3 point, Ray ray, Vector3 outwardNormal)
+    public static HitRecord Create(double t, Vector3 point, Ray ray, Vector3 outwardNormal, IMaterial material)
     {
         // If the ray and outward normal point in the same direction,
         // the ray is hitting the inside face.
@@ -44,7 +47,8 @@ public readonly record struct HitRecord
             Point = point,
             FrontFace = frontFace,
             // Flip the normal so it always opposes the ray direction
-            Normal = frontFace ? outwardNormal : -outwardNormal
+            Normal = frontFace ? outwardNormal : -outwardNormal,
+            Material = material
         };
     }
 }
