@@ -71,4 +71,15 @@ public sealed class Dielectric(double Ior) : IMaterial
         var base_ = 1.0 - cosTheta;
         return f0 + (1.0 - f0) * base_ * base_ * base_ * base_ * base_;
     }
+
+    /// <summary>
+    /// Returns the PDF of scattering in direction <paramref name="scattered"/>.
+    /// </summary>
+    /// <remarks>
+    /// A dielectric is a delta distribution — at each intersection either
+    /// reflection or refraction is chosen deterministically given the random
+    /// seed. By convention delta distributions return 1.0, signalling the MIS
+    /// integrator to skip light sampling for this bounce (§3.8.4).
+    /// </remarks>
+    public double Pdf(Ray rayIn, HitRecord hit, Ray scattered) => 1.0;
 }

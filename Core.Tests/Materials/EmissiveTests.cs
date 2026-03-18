@@ -49,4 +49,15 @@ public class EmissiveTests
         var mat = new Emissive(new Vector3(15.0, 15.0, 15.0));
         mat.Emit().X.Should().Be(15.0);
     }
+
+    [Fact]
+    public void Pdf_AlwaysZero()
+    {
+        var mat = new Emissive(Vector3.One);
+        var ray = new Ray(new Vector3(0, 0, -5), Vector3.UnitZ);
+        var hit = HitRecord.Create(1.0, Vector3.Zero, ray, -Vector3.UnitZ, mat);
+        var scattered = new Ray(Vector3.Zero, Vector3.UnitZ);
+
+        mat.Pdf(ray, hit, scattered).Should().Be(0.0);
+    }
 }

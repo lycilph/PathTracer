@@ -134,4 +134,15 @@ public class DielectricTests
         for (var i = 0; i < 100; i++)
             mat.Scatter(ray, hit, sampler, out _, out _).Should().BeTrue();
     }
+
+    [Fact]
+    public void Pdf_AlwaysOne()
+    {
+        var mat = new Dielectric(1.5);
+        var ray = new Ray(new Vector3(0, 0, -5), Vector3.UnitZ);
+        var hit = HitRecord.Create(1.0, Vector3.Zero, ray, -Vector3.UnitZ, mat);
+        var scattered = new Ray(Vector3.Zero, Vector3.UnitZ);
+
+        mat.Pdf(ray, hit, scattered).Should().Be(1.0);
+    }
 }

@@ -91,4 +91,29 @@ public class LambertianTests
         mean.Y.Should().BeLessThanOrEqualTo(1.0);
         mean.Z.Should().BeLessThanOrEqualTo(1.0);
     }
+
+    [Fact]
+    public void Pdf_ScatteredInHemisphere_IsPositive()
+    {
+        var mat = new Lambertian(new Vector3(0.8, 0.5, 0.3));
+        var ray = new Ray(new Vector3(0, 0, -1), Vector3.UnitZ);
+        var hit = HitRecord.Create(1.0, Vector3.Zero, ray, -Vector3.UnitZ, mat);
+        var sampler = new Sampler(42);
+
+        mat.Scatter(ray, hit, sampler, out _, out var scattered);
+        mat.Pdf(ray, hit, scattered).Should().BeGreaterThan(0);
+    }
+
+    [Fact]
+    public void Pdf_DirectionAlongNormal_IsOneOverPi()
+    {
+        // cosθ = 1 when scattered = normal, so PDF = 1/π
+        var mat = new Lambertian(Vector3.One);
+        var ray = new Ray(new Vector3(0, 0, -1), Vector3.UnitZ);
+        var hit = HitRecord.Create(1.0, Vector3.Zero, ray, -Vector3.UnitZ, mat);
+        var scattered = new Ray(Vector3.Zero, -Vector3.UnitZ); // along normal
+
+        mat.Pdf(ray, hit, scattered)
+           .Should().BeApproximately(1.0 / Math.PI, 1e-10);
+    }
 }

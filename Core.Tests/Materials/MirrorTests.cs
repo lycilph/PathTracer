@@ -95,4 +95,15 @@ public class MirrorTests
 
         scattered1.Direction.Should().Be(scattered2.Direction);
     }
+
+    [Fact]
+    public void Pdf_AlwaysOne()
+    {
+        var mat = new Mirror(Vector3.One);
+        var ray = new Ray(new Vector3(0, 1, -1), new Vector3(0, -1, 1).Normalize());
+        var hit = HitRecord.Create(1.0, Vector3.Zero, ray, Vector3.UnitY, mat);
+        var scattered = new Ray(Vector3.Zero, new Vector3(0, 1, 1).Normalize());
+
+        mat.Pdf(ray, hit, scattered).Should().Be(1.0);
+    }
 }

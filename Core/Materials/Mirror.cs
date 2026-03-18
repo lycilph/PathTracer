@@ -36,4 +36,14 @@ public sealed class Mirror(Vector3 Reflectance) : IMaterial
     /// <param name="n">Surface normal. Must be unit length.</param>
     public static Vector3 Reflect(Vector3 d, Vector3 n)
         => d - 2.0 * Vector3.Dot(d, n) * n;
+
+    /// <summary>
+    /// Returns the PDF of scattering in direction <paramref name="scattered"/>.
+    /// </summary>
+    /// <remarks>
+    /// A perfect mirror is a delta distribution — there is exactly one valid
+    /// outgoing direction. By convention delta distributions return 1.0, which
+    /// signals the MIS integrator to skip light sampling for this bounce (§3.8.2).
+    /// </remarks>
+    public double Pdf(Ray rayIn, HitRecord hit, Ray scattered) => 1.0;
 }

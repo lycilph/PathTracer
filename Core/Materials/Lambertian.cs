@@ -30,4 +30,19 @@ public sealed class Lambertian(Vector3 Albedo) : IMaterial
         attenuation = Albedo;
         return true;
     }
+
+    /// <summary>
+    /// Returns the PDF of scattering in direction <paramref name="scattered"/>.
+    /// </summary>
+    /// <remarks>
+    /// Cosine-weighted hemisphere PDF: p(ω) = cosθ / π (§3.7.2).
+    /// Matches the importance sampling used in <see cref="Scatter"/>, so the
+    /// estimator weight f_r·cosθ/p(ω) simplifies to albedo exactly.
+    /// </remarks>
+    public double Pdf(Ray rayIn, HitRecord hit, Ray scattered)
+    {
+        // Cosine-weighted hemisphere PDF: p(ω) = cosθ / π  (§3.7.2)
+        var cosTheta = Vector3.Dot(hit.Normal, scattered.Direction);
+        return Math.Max(0, cosTheta / Math.PI);
+    }
 }

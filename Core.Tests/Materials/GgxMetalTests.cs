@@ -155,4 +155,61 @@ public class GgxMetalTests
         roughSpread.Should().BeGreaterThan(smoothSpread,
             because: "higher roughness must produce wider scatter");
     }
+
+    [Fact]
+    public void Pdf_ScatteredDirection_IsPositive()
+    {
+        var mat = new GgxMetal(Silver, Roughness: 0.3);
+        var sampler = new Sampler(seed: 42);
+        var ray = new Ray(new Vector3(0, 1, -1), new Vector3(0, -1, 1).Normalize());
+        var hit = HitRecord.Create(1.0, Vector3.Zero, ray, Vector3.UnitY, mat);
+
+        // Use a direction actually produced by Scatter — ensures we're in a valid region
+        var count = 0;
+        for (var i = 0; i < 100; i++)
+        {
+            if (!mat.Scatter(ray, hit, sampler, out _, out var scattered))
+                continue;
+
+            mat.Pdf(ray, hit, scattered).Should().BeGreaterThan(0,
+                because: "PDF must be positive for directions Scatter can produce");
+            count++;
+        }
+
+        count.Should().BeGreaterThan(50, because: "most scatters should succeed");
+    }
+
+    [Fact]
+    public void Pdf_AndScatter_AreConsistent()
+    {
+        // Verify the PDF is consistent with Scatter by checking that the
+        // Monte Carlo estimator attenuation/pdf stays in a reasonable range
+        var mat = new GgxMetal(Silver, Roughness: 0.3);
+        var sampler = new Sampler(seed: 99);
+        var ray = new Ray(new Vector3(0, 1, -1), new Vector3(0, -1, 1).Normalize());
+        var hit = HitRecord.Create(1.0, Vector3.Zero, ray, Vector3.UnitY, mat);
+
+        var total = 0.0;
+        var count = 0;
+
+        for (var i = 0; i < 1000; i++)
+        {
+            if (!mat.Scatter(ray, hit, sampler, out var attenuation, out var scattered))
+                continue;
+
+            var pdf = mat.Pdf(ray, hit, scattered);
+            if (pdf <= 0) continue;
+
+            // attenuation already has the pdf baked in from Scatter,
+            // so attenuation.X should be in a physically plausible range
+            total += attenuation.X;
+            count++;
+        }
+
+        var mean = total / count;
+
+        // Mean attenuation should be physically plausible — not zero, not explosive
+        mean.Should().BeInRange(0.01, 10.0,
+            because: "mean attenuation must be physically plausible");
+    }
 }

@@ -30,4 +30,14 @@ public sealed class Emissive(Vector3 Emission) : IMaterial
         scattered = default;
         return false;
     }
+
+    /// <summary>
+    /// Returns the PDF of scattering in direction <paramref name="scattered"/>.
+    /// </summary>
+    /// <remarks>
+    /// Emissive surfaces never scatter — <see cref="Scatter"/> always returns
+    /// false and the path terminates. The PDF is 0 to reflect that no valid
+    /// scatter direction exists.
+    /// </remarks>
+    public double Pdf(Ray rayIn, HitRecord hit, Ray scattered) => 0.0;
 }

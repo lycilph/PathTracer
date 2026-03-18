@@ -131,4 +131,25 @@ public sealed class GgxMetal(Vector3 F0, double Roughness) : IMaterial
         var bitangent = Vector3.Cross(normal, tangent);
         return (local.X * tangent + local.Y * bitangent + local.Z * normal).Normalize();
     }
+
+    /// <summary>
+    /// Returns the PDF of scattering in direction <paramref name="scattered"/>.
+    /// </summary>
+    /// <remarks>
+    /// The GGX visible normal distribution PDF after change of variables from
+    /// half-vector h to outgoing direction l (§3.8.3):
+    /// p(l) = D(h)·(n·h) / (4·(v·h))
+    /// where h = normalize(v + l) is the half vector between view and light.
+    /// </remarks>
+    public double Pdf(Ray rayIn, HitRecord hit, Ray scattered)
+    {
+        var v = -rayIn.Direction;
+        var l = scattered.Direction;
+        var h = (v + l).Normalize();               // half vector
+        var nDotH = Math.Max(Vector3.Dot(hit.Normal, h), 0.0);
+        var vDotH = Math.Max(Vector3.Dot(v, h), 0.0);
+
+        // p(l) = D(h)·(n·h) / (4·(v·h))
+        return DistributionGgx(nDotH) * nDotH / (4.0 * vDotH + 1e-10);
+    }
 }

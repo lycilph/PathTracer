@@ -19,4 +19,15 @@ public interface IMaterial
     /// <returns>True if the ray scattered; false if it was fully absorbed.</returns>
     bool Scatter(Ray rayIn, HitRecord hit, Sampler sampler,
                  out Vector3 attenuation, out Ray scattered);
+
+    /// <summary>
+    /// Returns the PDF of having scattered in the direction
+    /// <paramref name="scattered"/> from surface point described by
+    /// <paramref name="hit"/>, given incoming ray <paramref name="rayIn"/>.
+    /// </summary>
+    /// <remarks>
+    /// For delta distributions (mirror, dielectric) return 1.0 — the MIS
+    /// integrator treats PDF=1 as a signal to skip light sampling for that bounce.
+    /// </remarks>
+    double Pdf(Ray rayIn, HitRecord hit, Ray scattered);
 }
