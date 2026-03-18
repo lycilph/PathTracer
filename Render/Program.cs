@@ -12,6 +12,103 @@ internal class Program
         var scene = new SceneList();
         var lights = new List<ILight>();
 
+        var white = new Lambertian(new Vector3(0.73, 0.73, 0.73));
+        var red = new Lambertian(new Vector3(0.65, 0.05, 0.05));
+        var green = new Lambertian(new Vector3(0.12, 0.45, 0.15));
+        var glass = new Dielectric(Ior: 1.5);
+        var silver = new GgxMetal(
+            F0: new Vector3(0.95, 0.93, 0.88),
+            Roughness: 0.1);
+
+        // Cornell Box walls
+        scene.Add(new Quad(new Vector3(-1, -1, -1), new Vector3(2, 0, 0),
+                           new Vector3(0, 0, 2), white));
+        scene.Add(new Quad(new Vector3(-1, 1, -1), new Vector3(2, 0, 0),
+                           new Vector3(0, 0, 2), white));
+        scene.Add(new Quad(new Vector3(-1, -1, -1), new Vector3(2, 0, 0),
+                           new Vector3(0, 2, 0), white));
+        scene.Add(new Quad(new Vector3(-1, -1, -1), new Vector3(0, 2, 0),
+                           new Vector3(0, 0, 2), red));
+        scene.Add(new Quad(new Vector3(1, -1, -1), new Vector3(0, 2, 0),
+                           new Vector3(0, 0, 2), green));
+
+        // Area light
+        var areaLight = new AreaLight(
+            new Vector3(-0.25, 0.999, -0.25),
+            new Vector3(0.5, 0, 0),
+            new Vector3(0, 0, 0.5),
+            new Vector3(15, 15, 15));
+        scene.Add(areaLight);
+        lights.Add(areaLight);
+
+        // Glass sphere
+        scene.Add(new Sphere(
+            new Vector3(0.35, -0.55, 0.2), 0.45, glass));
+
+        // Silver cube mesh — replaces the metallic sphere
+        var objPath = Path.Combine(AppContext.BaseDirectory, "cube.obj");
+        var mesh = Mesh.Load(objPath, silver);
+        Console.WriteLine($"Mesh loaded: {mesh.TriangleCount} triangles");
+        scene.Add(mesh);
+
+        // ── Build ─────────────────────────────────────────────────────────────────────
+
+        var hittable = scene.Build();
+        Console.WriteLine($"Scene: {scene.Count} primitives ({hittable.GetType().Name})");
+
+        // ── Camera ────────────────────────────────────────────────────────────────────
+
+        const int width = 512;
+        const int height = 512;
+
+        var camera = new Camera(
+            new Vector3(0, 0, 3.5), Vector3.Zero,
+            Vector3.UnitY, 40, width, height);
+
+        // ── Render ────────────────────────────────────────────────────────────────────
+
+        const int samplesPerPixel = 256;
+
+        var fb = new FrameBuffer(width, height);
+        var loop = new RenderLoop();
+        var tilesCompleted = 0;
+        var totalTiles = (int)(Math.Ceiling(width / 16.0) *
+                                   Math.Ceiling(height / 16.0));
+
+        var mis = new MisIntegrator { BackgroundRadiance = Vector3.Zero };
+
+        Console.WriteLine($"Rendering {width}×{height} at {samplesPerPixel} spp " +
+                          $"on {Environment.ProcessorCount} cores...");
+
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+
+        loop.Render(camera, fb,
+            (ray, sampler) => mis.Trace(ray, hittable, lights, sampler),
+            samplesPerPixel,
+            onTileComplete: () =>
+            {
+                var n = Interlocked.Increment(ref tilesCompleted);
+                if (n % 16 == 0 || n == totalTiles)
+                    Console.Write($"\r  {n}/{totalTiles} tiles   ");
+            });
+
+        sw.Stop();
+        Console.WriteLine($"\nDone in {sw.Elapsed.TotalSeconds:F1}s");
+
+        PpmWriter.Write(fb, "cornell_mesh.ppm");
+        Console.WriteLine("Saved -> cornell_mesh.ppm");
+
+        Console.Write("Press any key to continue...");
+        Console.ReadKey();
+    }
+
+    /*static void Main(string[] args)
+    {
+        // ── Scene ─────────────────────────────────────────────────────────────────────
+
+        var scene = new SceneList();
+        var lights = new List<ILight>();
+
         // Materials
         var white = new Lambertian(new Vector3(0.73, 0.73, 0.73));
         var red = new Lambertian(new Vector3(0.65, 0.05, 0.05));
@@ -121,7 +218,7 @@ internal class Program
             sw.Stop();
             Console.WriteLine($"\nDone in {sw.Elapsed.TotalSeconds:F1}s");
             PpmWriter.Write(fb, filename);
-            Console.WriteLine($"Saved → {filename}");
+            Console.WriteLine($"Saved -> {filename}");
         }
 
         // ── Compare at x spp — noise difference is very visible at low spp ───────────
@@ -131,9 +228,9 @@ internal class Program
         Console.WriteLine($"Rendering {width}×{height} at {spp} spp " +
                     $"on {Environment.ProcessorCount} cores...");
 
-        var brdf = new PathIntegrator { BackgroundRadiance = Vector3.Zero };
-        Render((ray, sampler) => brdf.Trace(ray, hittable, sampler),
-               spp, "cornell_brdf.ppm");
+        //var brdf = new PathIntegrator { BackgroundRadiance = Vector3.Zero };
+        //Render((ray, sampler) => brdf.Trace(ray, hittable, sampler),
+        //       spp, "cornell_brdf.ppm");
 
         var mis = new MisIntegrator { BackgroundRadiance = Vector3.Zero };
         Render((ray, sampler) => mis.Trace(ray, hittable, lights, sampler),
@@ -141,5 +238,5 @@ internal class Program
 
         Console.Write("Press any key to continue...");
         Console.ReadKey();
-    }
+    }*/
 }
