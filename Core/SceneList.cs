@@ -14,6 +14,28 @@ public sealed class SceneList : IHittable
 
     /// <summary>Removes all primitives from the scene.</summary>
     public void Clear() => _primitives.Clear();
+    
+    /// <summary>Number of primitives in the scene.</summary>
+    public int Count => _primitives.Count;
+
+    /// <summary>
+    /// Returns the most efficient IHittable for this scene's primitive count.
+    /// Uses a BVH for scenes with more than <paramref name="bvhThreshold"/>
+    /// primitives, and a flat SceneList below that threshold.
+    /// </summary>
+    /// <param name="bvhThreshold">
+    /// Minimum primitive count to justify BVH overhead. Default 16.
+    /// </param>
+    public IHittable Build(int bvhThreshold = 16)
+    {
+        if (_primitives.Count == 0)
+            return this;
+
+        if (_primitives.Count <= bvhThreshold)
+            return this;
+
+        return new BvhNode([.. _primitives]);
+    }
 
     /// <inheritdoc/>
     /// <remarks>

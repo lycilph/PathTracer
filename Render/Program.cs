@@ -9,7 +9,7 @@ internal class Program
     {
         // ── Scene ─────────────────────────────────────────────────────────────────────
 
-        var primitives = new List<IHittable>();
+        var scene = new SceneList();
 
         // Materials
         var white = new Lambertian(new Vector3(0.73, 0.73, 0.73));
@@ -30,57 +30,55 @@ internal class Program
         //        Right   x=+1  (green)
 
         // Floor
-        primitives.Add(new Quad(
+        scene.Add(new Quad(
             new Vector3(-1, -1, -1),
             new Vector3(2, 0, 0),
             new Vector3(0, 0, 2), white));
 
         // Ceiling
-        primitives.Add(new Quad(
+        scene.Add(new Quad(
             new Vector3(-1, 1, -1),
             new Vector3(2, 0, 0),
             new Vector3(0, 0, 2), white));
 
         // Back wall
-        primitives.Add(new Quad(
+        scene.Add(new Quad(
             new Vector3(-1, -1, -1),
             new Vector3(2, 0, 0),
             new Vector3(0, 2, 0), white));
 
         // Left wall (red)
-        primitives.Add(new Quad(
+        scene.Add(new Quad(
             new Vector3(-1, -1, -1),
             new Vector3(0, 2, 0),
             new Vector3(0, 0, 2), red));
 
         // Right wall (green)
-        primitives.Add(new Quad(
+        scene.Add(new Quad(
             new Vector3(1, -1, -1),
             new Vector3(0, 2, 0),
             new Vector3(0, 0, 2), green));
 
         // Area light (inset rectangle on ceiling)
-        primitives.Add(new Quad(
+        scene.Add(new Quad(
             new Vector3(-0.25, 0.999, -0.25),
             new Vector3(0.5, 0, 0),
             new Vector3(0, 0, 0.5), light));
 
         // Glass sphere
-        primitives.Add(new Sphere(
+        scene.Add(new Sphere(
             new Vector3(0.35, -0.55, 0.2), 0.45, glass));
 
         // Silver metallic sphere
-        primitives.Add(new Sphere(
+        scene.Add(new Sphere(
             new Vector3(-0.35, -0.55, -0.2), 0.45, silver));
-        
-        // ── Build BVH ─────────────────────────────────────────────────────────────────
 
-        Console.WriteLine("Building BVH...");
-        var bvh = new BvhNode(primitives);
+        // ── Build ─────────────────────────────────────────────────────────────────-───
 
-        var scenelist = new SceneList();
-        foreach (var primitive in primitives)
-            scenelist.Add(primitive);
+        // 8 primitives — stays as SceneList (below BVH threshold of 16)
+        var hittable = scene.Build(); // SceneList for small scenes, BVH for large
+        Console.WriteLine($"Scene built: {scene.Count} primitives " +
+                  $"({hittable.GetType().Name})");
 
         // ── Camera ────────────────────────────────────────────────────────────────────
 
@@ -106,7 +104,7 @@ internal class Program
         };
 
         var renderLoop = new RenderLoop();
-        var samplesPerPixel = 512;
+        var samplesPerPixel = 2048;
         var tilesCompleted = 0;
         var totalTiles = (int)(Math.Ceiling(width / 16.0) *
                                      Math.Ceiling(height / 16.0));
@@ -117,7 +115,7 @@ internal class Program
         var sw = System.Diagnostics.Stopwatch.StartNew();
 
         renderLoop.Render(
-            bvh, camera, frameBuffer, integrator,
+            hittable, camera, frameBuffer, integrator,
             samplesPerPixel: samplesPerPixel,
             onTileComplete: () =>
             {
