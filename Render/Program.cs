@@ -43,18 +43,33 @@ internal class Program
 
         // Glass sphere
         scene.Add(new Sphere(
-            new Vector3(0.35, -0.55, 0.2), 0.45, glass));
+            new Vector3(-0.55, -0.55, 0.2), 0.25, glass));
 
-        // Silver cube mesh — replaces the metallic sphere
-        var objPath = Path.Combine(AppContext.BaseDirectory, "cube.obj");
-        var mesh = Mesh.Load(objPath, silver);
-        Console.WriteLine($"Mesh loaded: {mesh.TriangleCount} triangles");
-        scene.Add(mesh);
+        // ── Load bunny ────────────────────────────────────────────────────────────────
+
+        var bunnyPath = Path.Combine(AppContext.BaseDirectory, "bunny.obj");
+        var bunnyMat = new Lambertian(new Vector3(0.8, 0.7, 0.6)); // warm off-white
+
+        Console.WriteLine("Loading bunny mesh...");
+        var bunnyMesh = Mesh.Load(bunnyPath, bunnyMat, smoothNormals: false);
+        Console.WriteLine($"Bunny loaded: {bunnyMesh.TriangleCount} triangles");
+
+        // Scale to fit Cornell Box, translate to sit on floor (y=-1)
+        const double scale = 5.0; //3.9;
+        const double translateY = -1.0 - (0.0332 * scale);
+
+        var bunnyTransform =
+            Matrix4x4d.Translation(0.3, translateY, 0) *  // shift right, sit on floor
+            Matrix4x4d.RotationY(25) *  // slight rotation for interest
+            Matrix4x4d.Scale(scale);
+
+        scene.Add(new Transform(bunnyMesh, bunnyTransform));
 
         // ── Build ─────────────────────────────────────────────────────────────────────
 
         var hittable = scene.Build();
-        Console.WriteLine($"Scene: {scene.Count} primitives ({hittable.GetType().Name})");
+        Console.WriteLine($"Scene: {scene.Count} top-level primitives, " +
+                          $"built as {hittable.GetType().Name}");
 
         // ── Camera ────────────────────────────────────────────────────────────────────
 
@@ -67,7 +82,7 @@ internal class Program
 
         // ── Render ────────────────────────────────────────────────────────────────────
 
-        const int samplesPerPixel = 256;
+        const int samplesPerPixel = 64;
 
         var fb = new FrameBuffer(width, height);
         var loop = new RenderLoop();
@@ -95,8 +110,8 @@ internal class Program
         sw.Stop();
         Console.WriteLine($"\nDone in {sw.Elapsed.TotalSeconds:F1}s");
 
-        PpmWriter.Write(fb, "cornell_mesh.ppm");
-        Console.WriteLine("Saved -> cornell_mesh.ppm");
+        PpmWriter.Write(fb, "bunny_mesh.ppm");
+        Console.WriteLine("Saved -> bunny_mesh.ppm");
 
         Console.Write("Press any key to continue...");
         Console.ReadKey();

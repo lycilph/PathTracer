@@ -26,7 +26,7 @@ public sealed class SceneList : IHittable
     /// <param name="bvhThreshold">
     /// Minimum primitive count to justify BVH overhead. Default 16.
     /// </param>
-    public IHittable Build(int bvhThreshold = 16)
+    public IHittable Build(int bvhThreshold = 128)
     {
         if (_primitives.Count == 0)
             return this;
