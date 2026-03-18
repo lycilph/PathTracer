@@ -10,12 +10,13 @@ internal class Program
         // ── Scene ─────────────────────────────────────────────────────────────────────
 
         var scene = new SceneList();
+        var lights = new List<ILight>();
 
         // Materials
         var white = new Lambertian(new Vector3(0.73, 0.73, 0.73));
         var red = new Lambertian(new Vector3(0.65, 0.05, 0.05));
         var green = new Lambertian(new Vector3(0.12, 0.45, 0.15));
-        var light = new Emissive(new Vector3(15, 15, 15));
+        //var light = new Emissive(new Vector3(15, 15, 15));
         var glass = new Dielectric(Ior: 1.5);
         var silver = new GgxMetal(
             F0: new Vector3(0.95, 0.93, 0.88),
@@ -59,12 +60,6 @@ internal class Program
             new Vector3(0, 2, 0),
             new Vector3(0, 0, 2), green));
 
-        // Area light (inset rectangle on ceiling)
-        scene.Add(new Quad(
-            new Vector3(-0.25, 0.999, -0.25),
-            new Vector3(0.5, 0, 0),
-            new Vector3(0, 0, 0.5), light));
-
         // Glass sphere
         scene.Add(new Sphere(
             new Vector3(0.35, -0.55, 0.2), 0.45, glass));
@@ -72,6 +67,15 @@ internal class Program
         // Silver metallic sphere
         scene.Add(new Sphere(
             new Vector3(-0.35, -0.55, -0.2), 0.45, silver));
+
+        // Area light (inset rectangle on ceiling)
+        var areaLight = new AreaLight(
+            new Vector3(-0.25, 0.999, -0.25),
+            new Vector3(0.5, 0, 0),
+            new Vector3(0, 0, 0.5),
+            new Vector3(15, 15, 15));
+        scene.Add(areaLight);
+        lights.Add(areaLight);
 
         // ── Build ─────────────────────────────────────────────────────────────────-───
 
@@ -93,45 +97,48 @@ internal class Program
             imageWidth: width,
             imageHeight: height);
 
-        // ── Render ────────────────────────────────────────────────────────────────────
+        // ── Render helper ─────────────────────────────────────────────────────────────
 
-        var frameBuffer = new FrameBuffer(width, height);
-        var integrator = new PathIntegrator
+        void Render(Func<Ray, Sampler, Vector3> traceFunc, int spp, string filename)
         {
-            BackgroundRadiance = Vector3.Zero,
-            MinDepth = 3,
-            MaxDepth = 50
-        };
+            var fb = new FrameBuffer(width, height);
+            var loop = new RenderLoop();
+            var tilesCompleted = 0;
+            var totalTiles = (int)(Math.Ceiling(width / 16.0) *
+                                       Math.Ceiling(height / 16.0));
 
-        var renderLoop = new RenderLoop();
-        var samplesPerPixel = 2048;
-        var tilesCompleted = 0;
-        var totalTiles = (int)(Math.Ceiling(width / 16.0) *
-                                     Math.Ceiling(height / 16.0));
+            Console.WriteLine($"\nRendering {filename} ({spp} spp)...");
+            var sw = System.Diagnostics.Stopwatch.StartNew();
 
-        Console.WriteLine($"Rendering {width}×{height} at {samplesPerPixel} spp " +
-                          $"on {Environment.ProcessorCount} cores...");
+            loop.Render(camera, fb, traceFunc, spp,
+                onTileComplete: () =>
+                {
+                    var n = Interlocked.Increment(ref tilesCompleted);
+                    if (n % 16 == 0 || n == totalTiles)
+                        Console.Write($"\r  {n}/{totalTiles} tiles   ");
+                });
 
-        var sw = System.Diagnostics.Stopwatch.StartNew();
+            sw.Stop();
+            Console.WriteLine($"\nDone in {sw.Elapsed.TotalSeconds:F1}s");
+            PpmWriter.Write(fb, filename);
+            Console.WriteLine($"Saved → {filename}");
+        }
 
-        renderLoop.Render(
-            hittable, camera, frameBuffer, integrator,
-            samplesPerPixel: samplesPerPixel,
-            onTileComplete: () =>
-            {
-                var n = Interlocked.Increment(ref tilesCompleted);
-                if (n % 4 == 0 || n == totalTiles)
-                    Console.Write($"\r  {n}/{totalTiles} tiles   ");
-            });
+        // ── Compare at x spp — noise difference is very visible at low spp ───────────
 
-        sw.Stop();
-        Console.WriteLine($"\nDone in {sw.Elapsed.TotalSeconds:F1}s");
+        const int spp = 64;
 
-        // ── Save ──────────────────────────────────────────────────────────────────────
+        Console.WriteLine($"Rendering {width}×{height} at {spp} spp " +
+                    $"on {Environment.ProcessorCount} cores...");
 
-        var outputPath = "cornellbox.ppm";
-        PpmWriter.Write(frameBuffer, outputPath);
-        Console.WriteLine($"Saved -> {outputPath}");
+        var brdf = new PathIntegrator { BackgroundRadiance = Vector3.Zero };
+        Render((ray, sampler) => brdf.Trace(ray, hittable, sampler),
+               spp, "cornell_brdf.ppm");
+
+        var mis = new MisIntegrator { BackgroundRadiance = Vector3.Zero };
+        Render((ray, sampler) => mis.Trace(ray, hittable, lights, sampler),
+               spp, "cornell_mis.ppm");
+
         Console.Write("Press any key to continue...");
         Console.ReadKey();
     }

@@ -28,6 +28,8 @@ public sealed class MisIntegrator
     {
         var radiance = Vector3.Zero;
         var throughput = Vector3.One;
+        var prevWasDelta = true; // treat camera ray as specular so first
+                                 // emissive hit is always counted
 
         for (var depth = 0; depth < MaxDepth; depth++)
         {
@@ -42,7 +44,11 @@ public sealed class MisIntegrator
             // For diffuse paths, the light was already sampled explicitly.
             if (hit.Material is Materials.Emissive emissive)
             {
-                if (depth == 0)
+                // Count emission if:
+                // - this is the first bounce (camera ray hit a light directly), OR
+                // - the previous bounce was specular (delta) — light sampling
+                //   cannot sample paths through mirrors or glass
+                if (prevWasDelta)
                     radiance = radiance + throughput * emissive.Emit();
                 break;
             }
@@ -70,6 +76,7 @@ public sealed class MisIntegrator
                 break;
 
             throughput = throughput * attenuation;
+            prevWasDelta = isDelta;
 
             // §3.6.3 Russian Roulette
             if (depth >= MinDepth)

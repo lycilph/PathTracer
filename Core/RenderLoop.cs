@@ -10,23 +10,17 @@ public sealed class RenderLoop
     public int TileSize { get; init; } = 16;
 
     /// <summary>
-    /// Renders the scene into <paramref name="frameBuffer"/> using path tracing.
-    /// Blocks until all tiles are complete or cancellation is requested.
+    /// Renders the scene into <paramref name="frameBuffer"/>.
+    /// The trace function is called once per sample per pixel.
     /// </summary>
-    /// <param name="scene">The scene to render.</param>
-    /// <param name="camera">The camera defining the view.</param>
-    /// <param name="frameBuffer">The buffer to accumulate samples into.</param>
-    /// <param name="integrator">The path integrator to use per ray.</param>
-    /// <param name="samplesPerPixel">Number of samples to trace per pixel.</param>
-    /// <param name="cancellationToken">Allows the caller to abort rendering early.</param>
-    /// <param name="onTileComplete">
-    /// Optional callback invoked after each tile completes — useful for UI progress updates.
+    /// <param name="traceFunc">
+    /// A function (ray, sampler) → radiance. Called once per sample.
+    /// Typically wraps a PathIntegrator or MisIntegrator.
     /// </param>
     public void Render(
-        IHittable scene,
         Camera camera,
         FrameBuffer frameBuffer,
-        PathIntegrator integrator,
+        Func<Ray, Sampler, Vector3> traceFunc,
         int samplesPerPixel,
         CancellationToken cancellationToken = default,
         Action? onTileComplete = null)
@@ -34,28 +28,23 @@ public sealed class RenderLoop
         var tilesX = (int)Math.Ceiling((double)frameBuffer.Width / TileSize);
         var tilesY = (int)Math.Ceiling((double)frameBuffer.Height / TileSize);
 
-        // Build the full list of tiles upfront
         var tiles = new List<(int tx, int ty)>(tilesX * tilesY);
         for (var ty = 0; ty < tilesY; ty++)
             for (var tx = 0; tx < tilesX; tx++)
                 tiles.Add((tx, ty));
 
-        // Parallel dispatch — each tile is an independent unit of work
         Parallel.ForEach(
             tiles,
             new ParallelOptions { CancellationToken = cancellationToken },
             tile =>
             {
-                if (cancellationToken.IsCancellationRequested)
-                    return;
+                if (cancellationToken.IsCancellationRequested) return;
 
                 var (tx, ty) = tile;
-
-                // Each tile gets its own seeded sampler — no shared state
                 var sampler = new Sampler(seed: ty * tilesX + tx);
 
-                RenderTile(tx, ty, scene, camera, frameBuffer,
-                           integrator, samplesPerPixel, sampler);
+                RenderTile(tx, ty, camera, frameBuffer,
+                           traceFunc, samplesPerPixel, sampler);
 
                 onTileComplete?.Invoke();
             });
@@ -67,10 +56,9 @@ public sealed class RenderLoop
     private void RenderTile(
         int tx,
         int ty,
-        IHittable scene,
         Camera camera,
         FrameBuffer frameBuffer,
-        PathIntegrator integrator,
+        Func<Ray, Sampler, Vector3> traceFunc,
         int samplesPerPixel,
         Sampler sampler)
     {
@@ -81,13 +69,11 @@ public sealed class RenderLoop
 
         for (var y = y0; y < y1; y++)
             for (var x = x0; x < x1; x++)
-            {
                 for (var s = 0; s < samplesPerPixel; s++)
                 {
                     var ray = camera.GenerateRay(x, y, sampler.Next(), sampler.Next());
-                    var radiance = integrator.Trace(ray, scene, sampler);
+                    var radiance = traceFunc(ray, sampler);
                     frameBuffer.AddSample(x, y, radiance);
                 }
-            }
     }
 }

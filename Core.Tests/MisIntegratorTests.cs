@@ -142,4 +142,59 @@ public class MisIntegratorTests
         result.Y.Should().BeApproximately(3, 0.1);
         result.Z.Should().BeApproximately(1, 0.1);
     }
+
+    [Fact]
+    public void Trace_CausticPath_ThroughGlass_IsNotBlack()
+    {
+        // A diffuse floor below a glass sphere with a light above.
+        // Rays from camera hit the floor, some paths go:
+        // camera → floor → refract through glass → refract again → light
+        var scene = new SceneList();
+        var lights = new List<ILight>();
+
+        // Floor at y=-1
+        var floor = new Quad(
+            new Vector3(-2, -1, -2),
+            new Vector3(4, 0, 0),
+            new Vector3(0, 0, 4),
+            new Lambertian(new Vector3(0.8, 0.8, 0.8)));
+
+        // Glass sphere sitting on the floor at y=-0.5 (radius 0.5)
+        var glassSphere = new Sphere(
+            new Vector3(0, -0.5, 0), 0.5,
+            new Dielectric(1.5));
+
+        // Large bright light above
+        var areaLight = new AreaLight(
+            new Vector3(-1, 2, -1),
+            new Vector3(2, 0, 0),
+            new Vector3(0, 0, 2),
+            new Vector3(20, 20, 20));
+
+        scene.Add(floor);
+        scene.Add(glassSphere);
+        scene.Add(areaLight);
+        lights.Add(areaLight);
+
+        var integrator = new MisIntegrator { BackgroundRadiance = Vector3.Zero };
+
+        // Camera above looking straight down at the floor below the sphere
+        // Direction: straight down (-Y)
+        var total = Vector3.Zero;
+        const int n = 500;
+        for (var i = 0; i < n; i++)
+        {
+            // Slightly randomise the hit point on the floor beneath the sphere
+            var sampler = new Sampler(i);
+            var x = (sampler.Next() - 0.5) * 0.3; // small jitter around x=0
+            var z = (sampler.Next() - 0.5) * 0.3;
+            var ray = new Ray(new Vector3(x, 5, z), -Vector3.UnitY);
+            total = total + integrator.Trace(ray, scene, lights, sampler);
+        }
+
+        var mean = total / n;
+
+        mean.X.Should().BeGreaterThan(0,
+            because: "caustic paths through glass must not be discarded");
+    }
 }
