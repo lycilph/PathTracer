@@ -6,7 +6,7 @@
 /// <param name="Centre">Centre of the sphere in world space.</param>
 /// <param name="Radius">Radius of the sphere in world units.</param>
 /// <param name="Material">The material the sphere will be rendered with.</param>
-public sealed class Sphere(Vector3 Centre, double Radius, IMaterial Material) : IHittable
+public sealed class Sphere(Vector3 Centre, double Radius, IMaterial Material) : IHittable, IBoundable
 {
     public Vector3 Centre { get; } = Centre;
     public double Radius { get; } = Radius;
@@ -49,4 +49,10 @@ public sealed class Sphere(Vector3 Centre, double Radius, IMaterial Material) : 
         hit = HitRecord.Create(t, point, ray, outwardNormal, Material);
         return true;
     }
+
+    /// <inheritdoc/>
+    /// <remarks>Tight AABB: centre ± radius on each axis.</remarks>
+    public Aabb GetBounds() => new(
+        Centre - new Vector3(Radius, Radius, Radius),
+        Centre + new Vector3(Radius, Radius, Radius));
 }
