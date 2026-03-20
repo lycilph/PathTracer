@@ -326,7 +326,8 @@ public sealed class SceneBuilder
         }
 
         var scene = sceneList.Build();
+        var primitiveCount = _state.Primitives.Count;
 
-        return new SceneDescription(camera, settings, scene, lights, validation);
+        return new SceneDescription(camera, settings, scene, lights, primitiveCount, validation);
     }
 }

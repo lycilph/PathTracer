@@ -4,61 +4,142 @@
         xmlns:avalonEdit="http://icsharpcode.net/sharpdevelop/avalonedit"
         xmlns:converters="clr-namespace:UI.Converters"
         xmlns:validation="clr-namespace:ScriptApi.Validation;assembly=ScriptApi"
+        xmlns:vm="clr-namespace:UI.ViewModels"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:UI.Views"
         mc:Ignorable="d"
+        d:DataContext="{d:DesignInstance Type=vm:MainViewModel, IsDesignTimeCreatable=False}"
         Title="{Binding WindowTitle}"
         Height="800" Width="1200"
         MinHeight="600" MinWidth="900">
+
     <Window.Resources>
         <converters:ValidationSeverityToColorConverter x:Key="SeverityToColor"/>
-        <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
         <converters:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibility"/>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
+
+        <!-- Shared styles -->
+        <Style x:Key="StatLabel" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#888888"/>
+            <Setter Property="FontFamily" Value="Consolas"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Margin" Value="0,2"/>
+        </Style>
+
+        <Style x:Key="StatValue" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#D4D4D4"/>
+            <Setter Property="FontFamily" Value="Consolas"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Margin" Value="0,2"/>
+        </Style>
+
+        <Style x:Key="StatSectionHeader" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#569CD6"/>
+            <Setter Property="FontFamily" Value="Consolas"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Margin" Value="0,8,0,4"/>
+        </Style>
     </Window.Resources>
 
     <DockPanel>
 
-        <!-- ── Toolbar ──────────────────────────────────────────────────── -->
-        <ToolBar DockPanel.Dock="Top" Padding="4">
+        <!-- ── Menu bar ──────────────────────────────────────────────────── -->
+        <Menu DockPanel.Dock="Top" 
+              x:Name="MainMenu">
+
+            <MenuItem Header="_File">
+
+                <MenuItem Header="_New"
+                          Command="{Binding NewScriptCommand}"
+                          InputGestureText="Ctrl+N"/>
+
+                <MenuItem Header="_Open..."
+                          Command="{Binding OpenScriptCommand}"
+                          InputGestureText="Ctrl+O"/>
+
+                <Separator/>
+
+                <MenuItem Header="_Save"
+                          Command="{Binding SaveScriptCommand}"
+                          InputGestureText="Ctrl+S"/>
+
+                <MenuItem Header="Save _As..."
+                          Command="{Binding SaveScriptAsCommand}"
+                          InputGestureText="Ctrl+Shift+S"/>
+
+                <Separator/>
+
+                <MenuItem Header="Save _Image As..."
+                          Command="{Binding SaveImageCommand}"
+                          InputGestureText="Ctrl+I"/>
+
+                <Separator/>
+
+                <!-- Recent files submenu -->
+                <MenuItem Header="Recent _Files"
+                          ItemsSource="{Binding RecentFiles}">
+                    <MenuItem.ItemContainerStyle>
+                        <Style TargetType="MenuItem">
+                            <Setter Property="Header"
+                                    Value="{Binding}"/>
+                            <Setter Property="Command"
+                                    Value="{Binding DataContext.OpenRecentFileCommand,
+                                        RelativeSource={RelativeSource AncestorType=Window}}"/>
+                            <Setter Property="CommandParameter"
+                                    Value="{Binding}"/>
+                        </Style>
+                    </MenuItem.ItemContainerStyle>
+                    <MenuItem.Style>
+                        <Style TargetType="MenuItem">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding RecentFiles.Count}"
+                                             Value="0">
+                                    <Setter Property="IsEnabled" Value="False"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </MenuItem.Style>
+                </MenuItem>
+
+                <MenuItem Header="C_lear Recent Files"
+                          Command="{Binding ClearRecentFilesCommand}"/>
+
+                <Separator/>
+
+                <MenuItem Header="E_xit"
+                          Click="Exit_Click"/>
+
+            </MenuItem>
+
+        </Menu>
+
+        <!-- ── Toolbar ───────────────────────────────────────────────────── -->
+        <ToolBar DockPanel.Dock="Top"
+                 Padding="4">
 
             <Button Content="▶ Run"
                     Command="{Binding RunCommand}"
-                    Padding="8,4" Margin="0,0,4,0"/>
+                    Padding="10,4" Margin="0,0,4,0"
+                    BorderThickness="0"/>
 
             <Button Content="■ Abort"
                     Command="{Binding AbortCommand}"
-                    Padding="8,4" Margin="0,0,8,0"/>
-
-            <Separator/>
-
-            <Button Content="New"
-                    Command="{Binding NewScriptCommand}"
-                    Padding="8,4" Margin="4,0"/>
-
-            <Button Content="Open"
-                    Command="{Binding OpenScriptCommand}"
-                    Padding="8,4" Margin="0,0,4,0"/>
-
-            <Button Content="Save"
-                    Command="{Binding SaveScriptCommand}"
-                    Padding="8,4" Margin="0,0,4,0"/>
-
-            <Button Content="Save As"
-                    Command="{Binding SaveScriptAsCommand}"
-                    Padding="8,4" Margin="0,0,8,0"/>
+                    Padding="10,4" Margin="0,0,8,0"
+                    BorderThickness="0"/>
 
             <Separator/>
 
             <!-- Progress -->
-            <TextBlock Text="{Binding ProgressText}"
-                       VerticalAlignment="Center"
-                       Margin="8,0" MinWidth="200"/>
-
             <ProgressBar Value="{Binding ProgressPercent}"
                          Minimum="0" Maximum="100"
-                         Width="150" Height="16"
-                         Margin="4,0"/>
+                         Width="200" Height="16"
+                         Margin="8,0"/>
+
+            <TextBlock Text="{Binding ProgressText}"
+                       VerticalAlignment="Center"
+                       Margin="8,0" MinWidth="120"/>
 
             <Separator/>
 
@@ -68,9 +149,9 @@
 
             <Separator/>
 
+            <!-- Warmup indicator -->
             <Border CornerRadius="3"
-                    Padding="6,2"
-                    Margin="4,0"
+                    Padding="6,2" Margin="4,0"
                     Visibility="{Binding IsWarmingUp,
                         Converter={StaticResource BoolToVisibility}}">
                 <StackPanel Orientation="Horizontal">
@@ -83,8 +164,7 @@
             </Border>
 
             <Border CornerRadius="3"
-                    Padding="6,2"
-                    Margin="4,0"
+                    Padding="6,2" Margin="4,0"
                     Visibility="{Binding IsWarmingUp,
                         Converter={StaticResource InverseBoolToVisibility}}">
                 <StackPanel Orientation="Horizontal">
@@ -95,66 +175,210 @@
                                Foreground="LightGreen"/>
                 </StackPanel>
             </Border>
+
         </ToolBar>
 
-        <!-- ── Validation panel ─────────────────────────────────────────── -->
-        <ItemsControl DockPanel.Dock="Bottom"
-                      ItemsSource="{Binding ValidationMessages}"
-                      MaxHeight="120"
-                      Background="#1E1E1E">
-            <ItemsControl.Template>
-                <ControlTemplate TargetType="ItemsControl">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto">
-                        <ItemsPresenter/>
-                    </ScrollViewer>
-                </ControlTemplate>
-            </ItemsControl.Template>
-            <ItemsControl.ItemTemplate>
-                <DataTemplate DataType="{x:Type validation:ValidationMessage}">
-                    <TextBlock Padding="8,2"
-                               FontFamily="Consolas"
-                               FontSize="12"
-                               Foreground="{Binding Severity,
-                                   Converter={StaticResource SeverityToColor}}"
-                               Text="{Binding}"/>
-                </DataTemplate>
-            </ItemsControl.ItemTemplate>
-        </ItemsControl>
-
-        <!-- ── Main content ─────────────────────────────────────────────── -->
+        <!-- ── Main content ──────────────────────────────────────────────── -->
         <Grid>
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" MinWidth="300"/>
-                <ColumnDefinition Width="4"/>
-                <ColumnDefinition Width="*" MinWidth="300"/>
-            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="4"/>
+                <RowDefinition Height="180" MinHeight="80"/>
+            </Grid.RowDefinitions>
 
-            <!-- Script editor -->
-            <avalonEdit:TextEditor
-                Grid.Column="0"
-                x:Name="ScriptEditor"
-                FontFamily="Consolas"
-                FontSize="13"
-                SyntaxHighlighting="C#"
-                ShowLineNumbers="True"
-                WordWrap="False"/>
-            <!--Background="#1E1E1E"
-                Foreground="#D4D4D4"/>-->
+            <!-- ── Top area: editor + preview + stats ────────────────────── -->
+            <Grid Grid.Row="0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" MinWidth="300"/>
+                    <ColumnDefinition Width="4"/>
+                    <ColumnDefinition Width="*" MinWidth="300"/>
+                    <ColumnDefinition Width="4"/>
+                    <ColumnDefinition Width="220" MinWidth="180"/>
+                </Grid.ColumnDefinitions>
 
-            <!-- Splitter -->
-            <GridSplitter Grid.Column="1"
-                          HorizontalAlignment="Stretch"
-                          Background="#3E3E3E"/>
+                <!-- Script editor -->
+                <avalonEdit:TextEditor
+                    Grid.Column="0"
+                    x:Name="ScriptEditor"
+                    FontFamily="Consolas"
+                    FontSize="13"
+                    SyntaxHighlighting="C#"
+                    ShowLineNumbers="True"
+                    WordWrap="False"/>
 
-            <!-- Preview image -->
-            <Border Grid.Column="2"
-                    Background="#1E1E1E">
-                <Viewbox Stretch="Uniform">
-                    <Image Source="{Binding PreviewBitmap}"
-                           RenderOptions.BitmapScalingMode="NearestNeighbor"/>
-                </Viewbox>
-            </Border>
+                <GridSplitter Grid.Column="1"
+                              HorizontalAlignment="Stretch"/>
+
+                <!-- Preview image -->
+                <Border Grid.Column="2">
+                    <Viewbox Stretch="Uniform">
+                        <Image Source="{Binding PreviewBitmap}"
+                               RenderOptions.BitmapScalingMode="NearestNeighbor"/>
+                    </Viewbox>
+                </Border>
+
+                <GridSplitter Grid.Column="3"
+                              HorizontalAlignment="Stretch"/>
+
+                <!-- Stats panel -->
+                <ScrollViewer Grid.Column="4"
+                              VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="12,8">
+
+                        <!-- Render statistics -->
+                        <TextBlock Text="Render Statistics"
+                                   Style="{StaticResource StatSectionHeader}"
+                                   Margin="0,0,0,4"/>
+
+                        <Separator Background="#3E3E3E" Margin="0,0,0,8"/>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition/>
+                                <RowDefinition/>
+                                <RowDefinition/>
+                                <RowDefinition/>
+                                <RowDefinition/>
+                                <RowDefinition/>
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Grid.Column="0"
+                                       Text="Resolution"
+                                       Style="{StaticResource StatLabel}"/>
+                            <TextBlock Grid.Row="0" Grid.Column="1"
+                                       Text="{Binding ResolutionText}"
+                                       Style="{StaticResource StatValue}"/>
+
+                            <TextBlock Grid.Row="1" Grid.Column="0"
+                                       Text="Samples"
+                                       Style="{StaticResource StatLabel}"/>
+                            <TextBlock Grid.Row="1" Grid.Column="1"
+                                       Text="{Binding SamplesText}"
+                                       Style="{StaticResource StatValue}"/>
+
+                            <TextBlock Grid.Row="2" Grid.Column="0"
+                                       Text="Elapsed"
+                                       Style="{StaticResource StatLabel}"/>
+                            <TextBlock Grid.Row="2" Grid.Column="1"
+                                       Text="{Binding ElapsedText}"
+                                       Style="{StaticResource StatValue}"/>
+
+                            <TextBlock Grid.Row="3" Grid.Column="0"
+                                       Text="Tiles"
+                                       Style="{StaticResource StatLabel}"/>
+                            <TextBlock Grid.Row="3" Grid.Column="1"
+                                       Text="{Binding TilesText}"
+                                       Style="{StaticResource StatValue}"/>
+
+                            <TextBlock Grid.Row="4" Grid.Column="0"
+                                       Text="Tiles/sec"
+                                       Style="{StaticResource StatLabel}"/>
+                            <TextBlock Grid.Row="4" Grid.Column="1"
+                                       Text="{Binding TilesPerSecText}"
+                                       Style="{StaticResource StatValue}"/>
+
+                            <TextBlock Grid.Row="5" Grid.Column="0"
+                                       Text="Rays/sec"
+                                       Style="{StaticResource StatLabel}"/>
+                            <TextBlock Grid.Row="5" Grid.Column="1"
+                                       Text="{Binding RaysPerSecText}"
+                                       Style="{StaticResource StatValue}"/>
+                        </Grid>
+
+                        <!-- Scene info -->
+                        <TextBlock Text="Scene"
+                                   Style="{StaticResource StatSectionHeader}"/>
+
+                        <Separator Background="#3E3E3E" Margin="0,0,0,8"/>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition/>
+                                <RowDefinition/>
+                                <RowDefinition/>
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Grid.Column="0"
+                                       Text="Primitives"
+                                       Style="{StaticResource StatLabel}"/>
+                            <TextBlock Grid.Row="0" Grid.Column="1"
+                                       Text="{Binding PrimitiveCountText}"
+                                       Style="{StaticResource StatValue}"/>
+
+                            <TextBlock Grid.Row="1" Grid.Column="0"
+                                       Text="Lights"
+                                       Style="{StaticResource StatLabel}"/>
+                            <TextBlock Grid.Row="1" Grid.Column="1"
+                                       Text="{Binding LightCountText}"
+                                       Style="{StaticResource StatValue}"/>
+
+                            <TextBlock Grid.Row="2" Grid.Column="0"
+                                       Text="Accelerator"
+                                       Style="{StaticResource StatLabel}"/>
+                            <TextBlock Grid.Row="2" Grid.Column="1"
+                                       Text="{Binding AcceleratorTypeText}"
+                                       Style="{StaticResource StatValue}"/>
+                        </Grid>
+
+                    </StackPanel>
+                </ScrollViewer>
+
+            </Grid>
+
+            <!-- Horizontal splitter -->
+            <GridSplitter Grid.Row="1"
+                          HorizontalAlignment="Stretch"/>
+
+            <!-- ── Bottom area: validation + stats ───────────────────────── -->
+            <Grid Grid.Row="2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="4"/>
+                    <ColumnDefinition Width="220" MinWidth="180"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Validation messages -->
+                <ItemsControl Grid.Column="0"
+                              ItemsSource="{Binding ValidationMessages}"
+                              Background="#252526">
+                    <ItemsControl.Template>
+                        <ControlTemplate TargetType="ItemsControl">
+                            <ScrollViewer
+                                VerticalScrollBarVisibility="Auto">
+                                <ItemsPresenter/>
+                            </ScrollViewer>
+                        </ControlTemplate>
+                    </ItemsControl.Template>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate
+                            DataType="{x:Type validation:ValidationMessage}">
+                            <TextBlock Padding="8,2"
+                                       FontFamily="Consolas"
+                                       FontSize="12"
+                                       Foreground="{Binding Severity,
+                                           Converter={StaticResource SeverityToColor}}"
+                                       Text="{Binding}"/>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <GridSplitter Grid.Column="1"
+                              HorizontalAlignment="Stretch"/>
+
+                <!-- Bottom right: placeholder to keep stats column aligned -->
+                <Border Grid.Column="2"/>
+
+            </Grid>
 
         </Grid>
+
     </DockPanel>
 </Window>

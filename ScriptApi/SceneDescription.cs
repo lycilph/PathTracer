@@ -34,17 +34,24 @@ public sealed class SceneDescription
     /// </summary>
     public ValidationResult Validation { get; }
 
+    /// <summary>
+    /// Total number of primitives in the scene including area lights.
+    /// </summary>
+    public int PrimitiveCount { get; }
+
     internal SceneDescription(
         Camera camera,
         RenderSettings settings,
         IHittable scene,
         IReadOnlyList<ILight> lights,
+        int primitiveCount,
         ValidationResult validation)
     {
         Camera = camera;
         Settings = settings;
         Scene = scene;
         Lights = lights;
+        PrimitiveCount = primitiveCount;
         Validation = validation;
     }
 }

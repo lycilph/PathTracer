@@ -8,6 +8,7 @@ using Engine.Rendering;
 using ScriptApi.Validation;
 using UI.Rendering;
 using UI.Scripting;
+using UI.Services;
 
 namespace UI.ViewModels;
 
@@ -20,6 +21,13 @@ public sealed partial class MainViewModel : ObservableObject
     private CancellationTokenSource? _cts;
     private string? _currentFilePath;
     private DateTime _lastBitmapUpdate = DateTime.MinValue;
+    private readonly RecentFilesService _recentFilesService = new();
+
+    // Statistics
+    private int _totalTiles;
+    private int _tileSize;
+    private int _samplesPerPixel;
+    private DateTime _renderStartTime;
 
     // ── Script editor ─────────────────────────────────────────────────────────
 
@@ -46,6 +54,47 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private string _warmupStatusText = "Warming up...";
 
+    // ── Render statistics ─────────────────────────────────────────────────────
+
+    [ObservableProperty]
+    private string _resolutionText = string.Empty;
+
+    [ObservableProperty]
+    private string _samplesText = string.Empty;
+
+    [ObservableProperty]
+    private string _elapsedText = string.Empty;
+
+    [ObservableProperty]
+    private string _tilesText = string.Empty;
+
+    [ObservableProperty]
+    private string _tilesPerSecText = string.Empty;
+
+    [ObservableProperty]
+    private string _raysPerSecText = string.Empty;
+
+    // ── Scene info ────────────────────────────────────────────────────────────
+
+    [ObservableProperty]
+    private string _primitiveCountText = string.Empty;
+
+    [ObservableProperty]
+    private string _lightCountText = string.Empty;
+
+    [ObservableProperty]
+    private string _acceleratorTypeText = string.Empty;
+
+    // ── Image saving ──────────────────────────────────────────────────────────
+
+    [ObservableProperty]
+    private bool _canSaveImage;
+
+    // ── Recent files ──────────────────────────────────────────────────────────
+
+    [ObservableProperty]
+    private ObservableCollection<string> _recentFiles = [];
+
     // ── Preview image ─────────────────────────────────────────────────────────
 
     [ObservableProperty]
@@ -59,6 +108,11 @@ public sealed partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     private string _windowTitle = "PathTracer";
+
+    public MainViewModel()
+    {
+        LoadRecentFiles();
+    }
 
     // ── Commands ──────────────────────────────────────────────────────────────
 
@@ -114,6 +168,22 @@ public sealed partial class MainViewModel : ObservableObject
             // ── Render ────────────────────────────────────────────────────────
             var renderer = new ProgressiveRenderer();
 
+            // Populate scene info
+            PrimitiveCountText = scene.PrimitiveCount.ToString();
+            LightCountText = scene.Lights.Count.ToString();
+            AcceleratorTypeText = scene.Scene.GetType().Name;
+            ResolutionText = $"{scene.Settings.ImageWidth} × {scene.Settings.ImageHeight}";
+            SamplesText = $"{scene.Settings.SamplesPerPixel} spp";
+
+            // Store for statistics calculation
+            _tileSize = renderer.TileSize;
+            _samplesPerPixel = scene.Settings.SamplesPerPixel;
+            var _tilesX = (int)Math.Ceiling((double)scene.Settings.ImageWidth / _tileSize);
+            var _tilesY = (int)Math.Ceiling((double)scene.Settings.ImageHeight / _tileSize);
+            _totalTiles = _tilesX * _tilesY;
+            _renderStartTime = DateTime.UtcNow;
+            CanSaveImage = false;
+
             var frameBuffer = await renderer.RenderAsync(
                 scene,
                 onProgress: progress =>
@@ -129,6 +199,9 @@ public sealed partial class MainViewModel : ObservableObject
             StatusText = _cts.Token.IsCancellationRequested
                 ? "Render aborted"
                 : $"Done — {scene.Settings.SamplesPerPixel} spp";
+
+            CanSaveImage = !(_cts?.IsCancellationRequested ?? false);
+            SaveImageCommand.NotifyCanExecuteChanged();
         }
         catch (OperationCanceledException)
         {
@@ -186,22 +259,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         if (dialog.ShowDialog() != true) return;
 
-        try
-        {
-            ScriptText = File.ReadAllText(dialog.FileName);
-            _currentFilePath = dialog.FileName;
-            UpdateWindowTitle();
-            ValidationMessages.Clear();
-            StatusText = "Script loaded";
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show(
-                $"Failed to open file:\n{ex.Message}",
-                "Open Error",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
-        }
+        LoadScriptFromPath(dialog.FileName);
     }
 
     [RelayCommand]
@@ -233,22 +291,127 @@ public sealed partial class MainViewModel : ObservableObject
         UpdateWindowTitle();
     }
 
+    [RelayCommand]
+    private void OpenRecentFile(string path)
+    {
+        if (!ConfirmDiscardChanges()) return;
+        LoadScriptFromPath(path);
+    }
+
+    [RelayCommand]
+    private void ClearRecentFiles()
+    {
+        _recentFilesService.ClearRecentFiles();
+        LoadRecentFiles();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanSaveImage))]
+    private void SaveImage()
+    {
+        if (PreviewBitmap is null) return;
+
+        var dialog = new Microsoft.Win32.SaveFileDialog
+        {
+            Title = "Save Rendered Image",
+            Filter = "PNG Image (*.png)|*.png",
+            DefaultExt = ".png",
+            FileName = _currentFilePath is null
+                ? "render"
+                : Path.GetFileNameWithoutExtension(_currentFilePath)
+        };
+
+        if (dialog.ShowDialog() != true) return;
+
+        try
+        {
+            using var stream = File.Create(dialog.FileName);
+            var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+            encoder.Frames.Add(
+                System.Windows.Media.Imaging.BitmapFrame.Create(PreviewBitmap));
+            encoder.Save(stream);
+            StatusText = $"Image saved — {Path.GetFileName(dialog.FileName)}";
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                $"Failed to save image:\n{ex.Message}",
+                "Save Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
+    }
+
     // ── Private helpers ───────────────────────────────────────────────────────
+
+
+    private void LoadScriptFromPath(string path)
+    {
+        try
+        {
+            ScriptText = File.ReadAllText(path);
+            _currentFilePath = path;
+            UpdateWindowTitle();
+            ValidationMessages.Clear();
+            StatusText = "Script loaded";
+            _recentFilesService.AddRecentFile(path);
+            LoadRecentFiles();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                $"Failed to open file:\n{ex.Message}",
+                "Open Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+            _recentFilesService.RemoveRecentFile(path);
+            LoadRecentFiles();
+        }
+    }
 
     private void UpdateProgress(RenderProgress progress)
     {
         ProgressPercent = progress.PercentComplete;
-        ProgressText = $"{progress.TilesCompleted}/{progress.TotalTiles} tiles" +
-                       $"  {progress.PercentComplete:F0}%" +
-                       $"  {progress.Elapsed:mm\\:ss}";
 
-        // Only update bitmap every 100ms
+        var elapsed = progress.Elapsed;
+        var elapsedSeconds = elapsed.TotalSeconds;
+
+        // Rays traced = tiles × pixels per tile × spp
+        var pixelsPerTile = _tileSize * _tileSize;
+        var raysTraced = (long)progress.TilesCompleted
+                         * pixelsPerTile
+                         * _samplesPerPixel;
+
+        var raysPerSec = elapsedSeconds > 0
+            ? raysTraced / elapsedSeconds
+            : 0;
+
+        var tilesPerSec = elapsedSeconds > 0
+            ? progress.TilesCompleted / elapsedSeconds
+            : 0;
+
+        // Update statistics
+        ElapsedText = elapsed.ToString(@"mm\:ss");
+        TilesText = $"{progress.TilesCompleted} / {progress.TotalTiles}";
+        TilesPerSecText = $"{tilesPerSec:F1}";
+        RaysPerSecText = FormatRaysPerSec(raysPerSec);
+        ProgressText = $"{progress.PercentComplete:F0}%  {elapsed:mm\\:ss}";
+
+        // Throttle bitmap updates to ~10fps
         var now = DateTime.UtcNow;
         if ((now - _lastBitmapUpdate).TotalMilliseconds >= 100)
         {
             UpdateBitmap(progress.FrameBuffer);
             _lastBitmapUpdate = now;
         }
+    }
+
+    private static string FormatRaysPerSec(double raysPerSec)
+    {
+        if (raysPerSec >= 1_000_000)
+            return $"{raysPerSec / 1_000_000:F1}M";
+        if (raysPerSec >= 1_000)
+            return $"{raysPerSec / 1_000:F1}K";
+        return $"{raysPerSec:F0}";
     }
 
     private void UpdateBitmap(FrameBuffer frameBuffer)
@@ -304,6 +467,13 @@ public sealed partial class MainViewModel : ObservableObject
             ? "PathTracer"
             : $"PathTracer — {Path.GetFileName(_currentFilePath)}";
     }
+
+    private void LoadRecentFiles()
+{
+    RecentFiles.Clear();
+    foreach (var file in _recentFilesService.GetRecentFiles())
+        RecentFiles.Add(file);
+}
 
     // ── The Application will signal this ─────────────────────────────────────
 
