@@ -111,6 +111,29 @@ internal static class SceneValidator
                 ValidateMaterial(s.Material, s.Name, result);
                 break;
 
+            case MovingSpherePrimitive ms:
+                if (ms.Radius <= 0)
+                    result.AddError(
+                        $"Moving sphere radius must be positive, got {ms.Radius}.",
+                        ms.Name);
+                if (ms.Radius < 1e-4)
+                    result.AddWarning(
+                        $"Moving sphere radius is very small ({ms.Radius}). " +
+                        "This may cause precision issues.",
+                        ms.Name);
+                if (ms.Time0 >= ms.Time1)
+                    result.AddError(
+                        $"Moving sphere time0 ({ms.Time0}) must be less than " +
+                        $"time1 ({ms.Time1}).",
+                        ms.Name);
+                if ((ms.Centre1 - ms.Centre0).IsNearZero())
+                    result.AddWarning(
+                        "Moving sphere start and end positions are the same — " +
+                        "no motion will be visible.",
+                        ms.Name);
+                ValidateMaterial(ms.Material, ms.Name, result);
+                break;
+
             case QuadPrimitive q:
                 if (q.Edge1.IsNearZero())
                     result.AddError("Quad edge1 has zero length.", q.Name);

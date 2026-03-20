@@ -264,7 +264,8 @@ public sealed partial class MainViewModel : ObservableObject
         {
             Title = "Open Scene Script",
             Filter = "C# Scene Scripts (*.cs)|*.cs|All Files (*.*)|*.*",
-            DefaultExt = ".cs"
+            DefaultExt = ".cs",
+            InitialDirectory = AppContext.BaseDirectory
         };
 
         if (dialog.ShowDialog() != true) return;
@@ -289,6 +290,7 @@ public sealed partial class MainViewModel : ObservableObject
             Title = "Save Scene Script",
             Filter = "C# Scene Scripts (*.cs)|*.cs|All Files (*.*)|*.*",
             DefaultExt = ".cs",
+            InitialDirectory = AppContext.BaseDirectory,
             FileName = _currentFilePath is null
                 ? "scene"
                 : Path.GetFileName(_currentFilePath)

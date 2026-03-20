@@ -23,6 +23,16 @@ internal sealed class SpherePrimitive : PrimitiveEntry
     public IMaterial Material { get; init; } = null!;
 }
 
+internal sealed class MovingSpherePrimitive : PrimitiveEntry
+{
+    public Vector3 Centre0 { get; init; }
+    public Vector3 Centre1 { get; init; }
+    public double Time0 { get; init; }
+    public double Time1 { get; init; }
+    public double Radius { get; init; }
+    public IMaterial Material { get; init; } = null!;
+}
+
 internal sealed class QuadPrimitive : PrimitiveEntry
 {
     public Vector3 Corner { get; init; }
@@ -178,6 +188,39 @@ public sealed class SceneBuilder
         return this;
     }
 
+    /// <summary>
+    /// Adds a sphere that moves linearly between two positions over a time
+    /// interval, producing motion blur when rendered with shutter time (§3.2.2).
+    /// </summary>
+    /// <param name="centre0">Centre position at time <paramref name="time0"/>.</param>
+    /// <param name="centre1">Centre position at time <paramref name="time1"/>.</param>
+    /// <param name="time0">Start time of the motion interval.</param>
+    /// <param name="time1">End time of the motion interval.</param>
+    /// <param name="radius">Radius of the sphere in world units.</param>
+    /// <param name="material">Surface material.</param>
+    /// <param name="name">Optional name for debugging.</param>
+    public SceneBuilder AddMovingSphere(
+        Vector3 centre0,
+        Vector3 centre1,
+        double time0,
+        double time1,
+        double radius,
+        IMaterial material,
+        string? name = null)
+    {
+        _state.Primitives.Add(new MovingSpherePrimitive
+        {
+            Name = name,
+            Centre0 = centre0,
+            Centre1 = centre1,
+            Time0 = time0,
+            Time1 = time1,
+            Radius = radius,
+            Material = material
+        });
+        return this;
+    }
+
     /// <summary>Adds a quad (parallelogram) to the scene.</summary>
     /// <param name="corner">One corner of the quad in world space.</param>
     /// <param name="edge1">First edge vector in world units.</param>
@@ -302,6 +345,13 @@ public sealed class SceneBuilder
             {
                 case SpherePrimitive s:
                     sceneList.Add(new Sphere(s.Centre, s.Radius, s.Material));
+                    break;
+
+                case MovingSpherePrimitive ms:
+                    sceneList.Add(new MovingSphere(
+                        ms.Centre0, ms.Centre1,
+                        ms.Time0, ms.Time1,
+                        ms.Radius, ms.Material));
                     break;
 
                 case QuadPrimitive q:
