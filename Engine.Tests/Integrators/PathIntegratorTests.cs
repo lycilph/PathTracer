@@ -2,8 +2,8 @@
 using Core.Algebra;
 using Core.Geometry;
 using Core.Sampling;
+using Engine.Integrators;
 using Engine.Materials;
-using Engine.Rendering;
 using FluentAssertions;
 
 namespace Engine.Tests.Integrators;
