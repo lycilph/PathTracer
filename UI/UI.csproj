@@ -16,9 +16,13 @@
     <Compile Remove="Scenes\05_motion_blur.cs" />
     <Compile Remove="Scenes\06_caustics.cs" />
     <Compile Remove="Scenes\07_roughness_comparison.cs" />
+    <Compile Remove="Scenes\08_bunny.cs" />
   </ItemGroup>
 
   <ItemGroup>
+    <Content Include="bunny.obj">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Content Include="Scenes\01_simple.cs">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
@@ -38,6 +42,9 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="Scenes\07_roughness_comparison.cs">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Scenes\08_bunny.cs">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
