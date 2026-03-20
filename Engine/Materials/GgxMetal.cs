@@ -36,7 +36,7 @@ public sealed class GgxMetal(Vector3 F0, double Roughness) : IMaterial
         var v = -rayIn.Direction; // view direction (points away from surface)
 
         // Sample a micro-facet normal from the GGX distribution
-        var h = SampleGgxNormal(hit.Normal, sampler);
+        var h = SampleGgxNormal(hit.Normal, v, sampler);
 
         // Reflect view direction about the micro-facet normal to get light direction
         var l = Mirror.Reflect(-v, h);
@@ -67,28 +67,68 @@ public sealed class GgxMetal(Vector3 F0, double Roughness) : IMaterial
     }
 
     /// <summary>
-    /// Samples a micro-facet normal from the GGX distribution oriented
-    /// around <paramref name="normal"/> using spherical coordinates.
+    /// Samples a micro-facet normal from the GGX Visible Normal Distribution
+    /// Function (VNDF) oriented around <paramref name="normal"/>.
     /// </summary>
-    private Vector3 SampleGgxNormal(Vector3 normal, Sampler sampler)
+    /// <remarks>
+    /// VNDF sampling (Heitz 2018) only produces normals visible from the view
+    /// direction, eliminating below-surface samples and reducing variance
+    /// significantly at low roughness values compared to basic GGX sampling.
+    /// </remarks>
+    private Vector3 SampleGgxNormal(Vector3 normal, Vector3 v, Sampler sampler)
     {
         var r1 = sampler.Next();
         var r2 = sampler.Next();
         var a = Roughness;
 
-        // GGX importance sampling: θ_h = arctan(α√ξ₁/√(1−ξ₁))
-        var theta = Math.Atan(a * Math.Sqrt(r1) / Math.Sqrt(1.0 - r1));
-        var phi = 2.0 * Math.PI * r2;
+        // Transform view direction to local space
+        var localV = ToLocal(v, normal);
 
-        var sinTheta = Math.Sin(theta);
-        var cosTheta = Math.Cos(theta);
+        // Stretch view direction by roughness
+        var stretchedV = new Vector3(a * localV.X, a * localV.Y, localV.Z).Normalize();
 
-        var localH = new Vector3(
-            sinTheta * Math.Cos(phi),
-            sinTheta * Math.Sin(phi),
-            cosTheta);
+        // Build orthonormal basis around stretched view direction
+        var t1 = stretchedV.Z < 0.9999
+            ? Vector3.Cross(stretchedV, Vector3.UnitZ).Normalize()
+            : Vector3.UnitX;
+        var t2 = Vector3.Cross(t1, stretchedV);
 
-        return ToWorld(localH, normal);
+        // Sample point on the hemisphere
+        var a2 = 1.0 / (1.0 + stretchedV.Z);
+        var r = Math.Sqrt(r1);
+        var phi = r2 < a2
+            ? r2 / a2 * Math.PI
+            : Math.PI + (r2 - a2) / (1.0 - a2) * Math.PI;
+
+        var p1 = r * Math.Cos(phi);
+        var p2 = r * Math.Sin(phi) * (r2 < a2 ? 1.0 : stretchedV.Z);
+
+        // Compute normal in stretched space
+        var p3 = Math.Sqrt(Math.Max(0.0, 1.0 - p1 * p1 - p2 * p2));
+        var localH = p1 * t1 + p2 * t2 + p3 * stretchedV;
+
+        // Unstretch and return in world space
+        var unstretched = new Vector3(a * localH.X, a * localH.Y, Math.Max(0.0, localH.Z)).Normalize();
+        return ToWorld(unstretched, normal);
+    }
+
+    /// <summary>
+    /// Transforms a world-space direction into the local frame defined by
+    /// <paramref name="normal"/>.
+    /// </summary>
+    private static Vector3 ToLocal(Vector3 v, Vector3 normal)
+    {
+        Vector3 tangent;
+        if (Math.Abs(normal.X) > 0.9)
+            tangent = Vector3.Cross(new Vector3(0, 1, 0), normal).Normalize();
+        else
+            tangent = Vector3.Cross(new Vector3(1, 0, 0), normal).Normalize();
+
+        var bitangent = Vector3.Cross(normal, tangent);
+        return new Vector3(
+            Vector3.Dot(v, tangent),
+            Vector3.Dot(v, bitangent),
+            Vector3.Dot(v, normal));
     }
 
     /// <summary>
@@ -156,5 +196,29 @@ public sealed class GgxMetal(Vector3 F0, double Roughness) : IMaterial
 
         // p(l) = D(h)·(n·h) / (4·(v·h))
         return DistributionGgx(nDotH) * nDotH / (4.0 * vDotH + 1e-10);
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Evaluates the full GGX BRDF: D·G·F / (4·nDotL·nDotV) (§3.8.3).
+    /// </remarks>
+    public Vector3 Evaluate(Ray rayIn, HitRecord hit, Ray scattered)
+    {
+        var v = -rayIn.Direction;
+        var l = scattered.Direction;
+        var h = (v + l).Normalize();
+
+        var nDotL = Vector3.Dot(hit.Normal, l);
+        var nDotV = Vector3.Dot(hit.Normal, v);
+        if (nDotL <= 0 || nDotV <= 0) return Vector3.Zero;
+
+        var nDotH = Math.Max(Vector3.Dot(hit.Normal, h), 0.0);
+        var vDotH = Math.Max(Vector3.Dot(v, h), 0.0);
+
+        var d = DistributionGgx(nDotH);
+        var g = GeometrySmith(nDotV, nDotL);
+        var f = FresnelSchlick(vDotH, F0);
+
+        return f * (d * g / (4.0 * nDotL * nDotV + 1e-10));
     }
 }

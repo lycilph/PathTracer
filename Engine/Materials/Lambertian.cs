@@ -50,4 +50,15 @@ public sealed class Lambertian(Vector3 Albedo) : IMaterial
         var cosTheta = Vector3.Dot(hit.Normal, scattered.Direction);
         return Math.Max(0, cosTheta / Math.PI);
     }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Lambertian BRDF is constant: f_r = albedo / π (§3.8.1).
+    /// </remarks>
+    public Vector3 Evaluate(Ray rayIn, HitRecord hit, Ray scattered)
+    {
+        var cosTheta = Vector3.Dot(hit.Normal, scattered.Direction);
+        if (cosTheta <= 0) return Vector3.Zero;
+        return Albedo / Math.PI;
+    }
 }

@@ -2,7 +2,7 @@
 using Core.Geometry;
 using Core.Sampling;
 
-namespace Engine.Rendering;
+namespace Engine.Integrators;
 
 /// <summary>
 /// Unidirectional path tracer implementing the rendering equation

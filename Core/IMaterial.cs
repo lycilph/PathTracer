@@ -34,4 +34,18 @@ public interface IMaterial
     /// integrator treats PDF=1 as a signal to skip light sampling for that bounce.
     /// </remarks>
     double Pdf(Ray rayIn, HitRecord hit, Ray scattered);
+
+    /// <summary>
+    /// Evaluates the BRDF f_r for the given incoming and outgoing directions
+    /// without sampling a new direction.
+    /// </summary>
+    /// <param name="rayIn">The incoming ray that struck the surface.</param>
+    /// <param name="hit">The hit record describing the intersection.</param>
+    /// <param name="scattered">The outgoing direction to evaluate.</param>
+    /// <returns>
+    /// The BRDF value f_r(ωi, ωo) per RGB channel.
+    /// Returns zero for delta distributions (mirror, dielectric) since they
+    /// have no valid evaluation at arbitrary directions.
+    /// </returns>
+    Vector3 Evaluate(Ray rayIn, HitRecord hit, Ray scattered);
 }

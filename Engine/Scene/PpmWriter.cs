@@ -1,4 +1,6 @@
-﻿namespace Engine.Rendering;
+﻿using Engine.Rendering;
+
+namespace Engine.Scene;
 
 /// <summary>
 /// Writes a FrameBuffer to a PPM image file (Portable Pixmap, plain text).

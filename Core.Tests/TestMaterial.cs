@@ -15,4 +15,6 @@ internal sealed class TestMaterial : IMaterial
     }
 
     public double Pdf(Ray rayIn, HitRecord hit, Ray scattered) => 0.0;
+
+    public Vector3 Evaluate(Ray rayIn, HitRecord hit, Ray scattered) => Vector3.Zero;
 }

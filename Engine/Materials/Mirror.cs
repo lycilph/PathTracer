@@ -51,4 +51,11 @@ public sealed class Mirror(Vector3 Reflectance) : IMaterial
     /// signals the MIS integrator to skip light sampling for this bounce (§3.8.2).
     /// </remarks>
     public double Pdf(Ray rayIn, HitRecord hit, Ray scattered) => 1.0;
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Delta distribution — no valid evaluation at arbitrary directions.
+    /// </remarks>
+    public Vector3 Evaluate(Ray rayIn, HitRecord hit, Ray scattered)
+        => Vector3.Zero;
 }

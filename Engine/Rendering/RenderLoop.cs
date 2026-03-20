@@ -45,7 +45,7 @@ public sealed class RenderLoop
                 if (cancellationToken.IsCancellationRequested) return;
 
                 var (tx, ty) = tile;
-                var sampler = new Sampler(seed: ty * tilesX + tx);
+                var sampler = new Sampler(seed: HashSeed(tx, ty));
 
                 RenderTile(tx, ty, camera, frameBuffer,
                            traceFunc, samplesPerPixel, sampler);
@@ -79,5 +79,22 @@ public sealed class RenderLoop
                     var radiance = traceFunc(ray, sampler);
                     frameBuffer.AddSample(x, y, radiance);
                 }
+    }
+
+    /// <summary>
+    /// Produces a well-distributed seed for a tile at (tx, ty).
+    /// Uses a hash rather than a linear combination to avoid correlation
+    /// between adjacent tiles which share similar seed values.
+    /// </summary>
+    private static int HashSeed(int tx, int ty)
+    {
+        // FNV-1a inspired integer hash
+        unchecked
+        {
+            int hash = (int)2166136261;
+            hash = (hash ^ tx) * 16777619;
+            hash = (hash ^ ty) * 16777619;
+            return hash;
+        }
     }
 }

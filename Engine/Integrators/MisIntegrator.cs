@@ -184,26 +184,8 @@ public sealed class MisIntegrator
 
     /// <summary>
     /// Evaluates the BRDF value f_r for the given material and directions.
-    /// Extracts the per-channel reflectance from the material's scatter weight.
     /// </summary>
     private static Vector3 EvalBrdf(IMaterial material, Ray rayIn,
                                     HitRecord hit, Ray scattered)
-    {
-        // We recover f_r by calling Scatter with a fixed sampler state.
-        // This works because attenuation = f_r·cosθ/pdf for our materials,
-        // so f_r = attenuation·pdf/cosθ
-        var pdf = material.Pdf(rayIn, hit, scattered);
-        if (pdf <= 0) return Vector3.Zero;
-
-        var cosTheta = Math.Max(Vector3.Dot(hit.Normal, scattered.Direction), 1e-10);
-
-        // Create a dummy sampler — Scatter output is deterministic given direction
-        // for eval purposes (we only use the attenuation, not the direction)
-        var dummySampler = new Sampler(0);
-        if (!material.Scatter(rayIn, hit, dummySampler,
-                out var attenuation, out _))
-            return Vector3.Zero;
-
-        return attenuation * pdf / cosTheta;
-    }
+        => material.Evaluate(rayIn, hit, scattered);
 }

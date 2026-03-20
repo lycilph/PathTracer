@@ -27,7 +27,9 @@ public sealed class SceneList : IHittable
     /// primitives, and a flat SceneList below that threshold.
     /// </summary>
     /// <param name="bvhThreshold">
-    /// Minimum primitive count to justify BVH overhead. Default 16.
+    /// Minimum primitive count to justify BVH overhead. Default 128 — below
+    /// this count the BVH construction cost and memory overhead outweigh the
+    /// traversal savings, so a flat linear search is faster in practice.
     /// </param>
     public IHittable Build(int bvhThreshold = 128)
     {

@@ -87,4 +87,11 @@ public sealed class Dielectric(double Ior) : IMaterial
     /// integrator to skip light sampling for this bounce (§3.8.4).
     /// </remarks>
     public double Pdf(Ray rayIn, HitRecord hit, Ray scattered) => 1.0;
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Delta distribution — no valid evaluation at arbitrary directions.
+    /// </remarks>
+    public Vector3 Evaluate(Ray rayIn, HitRecord hit, Ray scattered)
+        => Vector3.Zero;
 }

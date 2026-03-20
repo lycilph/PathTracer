@@ -44,4 +44,11 @@ public sealed class Emissive(Vector3 Emission) : IMaterial
     /// scatter direction exists.
     /// </remarks>
     public double Pdf(Ray rayIn, HitRecord hit, Ray scattered) => 0.0;
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Emissive surfaces do not scatter — BRDF is zero.
+    /// </remarks>
+    public Vector3 Evaluate(Ray rayIn, HitRecord hit, Ray scattered)
+        => Vector3.Zero;
 }
