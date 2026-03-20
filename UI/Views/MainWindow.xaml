@@ -13,6 +13,8 @@
         MinHeight="600" MinWidth="900">
     <Window.Resources>
         <converters:ValidationSeverityToColorConverter x:Key="SeverityToColor"/>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
+        <converters:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibility"/>
     </Window.Resources>
 
     <DockPanel>
@@ -63,6 +65,36 @@
             <TextBlock Text="{Binding StatusText}"
                        VerticalAlignment="Center"
                        Margin="8,0"/>
+
+            <Separator/>
+
+            <Border CornerRadius="3"
+                    Padding="6,2"
+                    Margin="4,0"
+                    Visibility="{Binding IsWarmingUp,
+                        Converter={StaticResource BoolToVisibility}}">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="⏳ "
+                               VerticalAlignment="Center"/>
+                    <TextBlock Text="{Binding WarmupStatusText}"
+                               VerticalAlignment="Center"
+                               Foreground="Goldenrod"/>
+                </StackPanel>
+            </Border>
+
+            <Border CornerRadius="3"
+                    Padding="6,2"
+                    Margin="4,0"
+                    Visibility="{Binding IsWarmingUp,
+                        Converter={StaticResource InverseBoolToVisibility}}">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="✓ "
+                               VerticalAlignment="Center"/>
+                    <TextBlock Text="Ready"
+                               VerticalAlignment="Center"
+                               Foreground="LightGreen"/>
+                </StackPanel>
+            </Border>
         </ToolBar>
 
         <!-- ── Validation panel ─────────────────────────────────────────── -->

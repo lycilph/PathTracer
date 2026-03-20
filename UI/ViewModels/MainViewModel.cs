@@ -39,6 +39,12 @@ public sealed partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     private bool _isRendering;
+    
+    [ObservableProperty]
+    private bool _isWarmingUp = true;
+
+    [ObservableProperty]
+    private string _warmupStatusText = "Warming up...";
 
     // ── Preview image ─────────────────────────────────────────────────────────
 
@@ -144,7 +150,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
-    private bool CanRun() => !IsRendering;
+    private bool CanRun() => !IsRendering && !IsWarmingUp;
 
     [RelayCommand(CanExecute = nameof(CanAbort))]
     private void Abort()
@@ -297,6 +303,15 @@ public sealed partial class MainViewModel : ObservableObject
         WindowTitle = _currentFilePath is null
             ? "PathTracer"
             : $"PathTracer — {Path.GetFileName(_currentFilePath)}";
+    }
+
+    // ── The Application will signal this ─────────────────────────────────────
+
+    public void OnWarmupComplete()
+    {
+        IsWarmingUp = false;
+        WarmupStatusText = "Ready";
+        RunCommand.NotifyCanExecuteChanged();
     }
 
     // ── Default script ────────────────────────────────────────────────────────
