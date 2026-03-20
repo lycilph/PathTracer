@@ -1,6 +1,7 @@
 ﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using UI.Editor;
 using UI.Misc;
 using UI.ViewModels;
 
@@ -8,6 +9,8 @@ namespace UI.Views;
 
 public partial class MainWindow : Window
 {
+    private readonly ErrorMarkerService _errorMarkerService;
+
     public MainViewModel ViewModel { get; init; }
 
     public MainWindow()
@@ -27,7 +30,22 @@ public partial class MainWindow : Window
             if (e.PropertyName == nameof(MainViewModel.ScriptText) &&
                 ScriptEditor.Text != ViewModel.ScriptText)
                 ScriptEditor.Text = ViewModel.ScriptText;
+
+            // Update error markers when compilation errors change
+            if (e.PropertyName == nameof(MainViewModel.LastScriptErrors) && _errorMarkerService != null)
+            {
+                var errors = ViewModel.LastScriptErrors;
+                if (errors.Count == 0 )
+                    _errorMarkerService.ClearErrors();
+                else
+                    _errorMarkerService.SetErrors(errors);
+            }
         };
+
+        // Register error marker service with AvalonEdit
+        _errorMarkerService = new ErrorMarkerService(ScriptEditor);
+        ScriptEditor.TextArea.TextView.BackgroundRenderers
+                    .Add(_errorMarkerService);
 
         // Keyboard shortcuts
         CommandBindings.Add(new CommandBinding(

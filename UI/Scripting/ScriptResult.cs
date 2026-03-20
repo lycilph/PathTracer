@@ -20,11 +20,11 @@ public sealed class ScriptResult
     /// Compilation or runtime errors. Only populated when
     /// <see cref="IsSuccess"/> is false.
     /// </summary>
-    public IReadOnlyList<string> Errors { get; }
+    public IReadOnlyList<ScriptError> Errors { get; }
 
     private ScriptResult(bool isSuccess,
                          SceneDescription? scene,
-                         IReadOnlyList<string> errors)
+                         IReadOnlyList<ScriptError> errors)
     {
         IsSuccess = isSuccess;
         Scene = scene;
@@ -34,6 +34,6 @@ public sealed class ScriptResult
     public static ScriptResult Success(SceneDescription scene)
         => new(true, scene, []);
 
-    public static ScriptResult Failure(IReadOnlyList<string> errors)
+    public static ScriptResult Failure(IReadOnlyList<ScriptError> errors)
         => new(false, null, errors);
 }

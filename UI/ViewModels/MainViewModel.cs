@@ -22,6 +22,7 @@ public sealed partial class MainViewModel : ObservableObject
     private string? _currentFilePath;
     private DateTime _lastBitmapUpdate = DateTime.MinValue;
     private readonly RecentFilesService _recentFilesService = new();
+    private IReadOnlyList<ScriptError> _lastScriptErrors = [];
 
     // Statistics
     private int _totalTiles;
@@ -33,6 +34,8 @@ public sealed partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     private string _scriptText = DefaultScript;
+
+    public IReadOnlyList<ScriptError> LastScriptErrors => _lastScriptErrors;
 
     // ── Status ────────────────────────────────────────────────────────────────
 
@@ -134,14 +137,21 @@ public sealed partial class MainViewModel : ObservableObject
 
             if (!scriptResult.IsSuccess)
             {
+                _lastScriptErrors = scriptResult.Errors;
                 foreach (var error in scriptResult.Errors)
                     ValidationMessages.Add(new ValidationMessage(
-                        ValidationSeverity.Error, error));
+                        ValidationSeverity.Error, 
+                        error.ToString()));
 
                 StatusText = $"Compilation failed — " +
                              $"{scriptResult.Errors.Count} error(s)";
+                OnPropertyChanged(nameof(LastScriptErrors));
                 return;
             }
+
+            // Clear errors on success
+            _lastScriptErrors = [];
+            OnPropertyChanged(nameof(LastScriptErrors));
 
             var scene = scriptResult.Scene!;
 
@@ -325,9 +335,8 @@ public sealed partial class MainViewModel : ObservableObject
         try
         {
             using var stream = File.Create(dialog.FileName);
-            var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
-            encoder.Frames.Add(
-                System.Windows.Media.Imaging.BitmapFrame.Create(PreviewBitmap));
+            var encoder = new PngBitmapEncoder();
+            encoder.Frames.Add(BitmapFrame.Create(PreviewBitmap));
             encoder.Save(stream);
             StatusText = $"Image saved — {Path.GetFileName(dialog.FileName)}";
         }

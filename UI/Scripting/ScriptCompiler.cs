@@ -1,5 +1,6 @@
 ﻿using System.Reflection;
 using System.Runtime.Loader;
+using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Scripting;
 using Microsoft.CodeAnalysis.Scripting;
 using ScriptApi;
@@ -55,16 +56,34 @@ public sealed class ScriptCompiler
 
             if (result.ReturnValue is null)
                 return ScriptResult.Failure(
-                    ["Script did not return a SceneDescription. " +
-                     "Make sure your script ends with a return statement."]);
+                    [new ScriptError("Script did not return a SceneDescription. " +
+                        "Make sure your script ends with a return statement.")]);
 
             return ScriptResult.Success(result.ReturnValue);
         }
         catch (CompilationErrorException ex)
         {
             var errors = ex.Diagnostics
-                .Select(d => d.ToString())
+                .Where(d => d.Severity == DiagnosticSeverity.Error)
+                .Select(d =>
+                {
+                    var lineSpan = d.Location.GetLineSpan();
+
+                    // Roslyn is 0-based; editors are 1-based.
+                    // Subtract injected using lines so error locations
+                    // map back to the user's script line numbers.
+                    var injectedLines = InjectedUsings.Count + 1;
+                    var line = lineSpan.StartLinePosition.Line + 1
+                               - injectedLines;
+                    var column = lineSpan.StartLinePosition.Character + 1;
+
+                    return new ScriptError(
+                        d.GetMessage(),
+                        Math.Max(1, line),
+                        column);
+                })
                 .ToList();
+
             return ScriptResult.Failure(errors);
         }
         catch (OperationCanceledException)
@@ -74,7 +93,9 @@ public sealed class ScriptCompiler
         catch (Exception ex)
         {
             return ScriptResult.Failure(
-                [$"Runtime error: {ex.Message}"]);
+            [
+                new ScriptError($"Runtime error: {ex.Message}")
+            ]);
         }
         finally
         {
