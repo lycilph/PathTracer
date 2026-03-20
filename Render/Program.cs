@@ -1,5 +1,11 @@
 ﻿using Core;
-using Core.Materials;
+using Core.Acceleration;
+using Core.Algebra;
+using Core.Geometry;
+using Engine.Integrators;
+using Engine.Lighting;
+using Engine.Materials;
+using Engine.Rendering;
 
 namespace Render;
 

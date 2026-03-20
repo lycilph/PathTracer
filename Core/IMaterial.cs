@@ -1,4 +1,8 @@
-﻿namespace Core;
+﻿using Core.Algebra;
+using Core.Geometry;
+using Core.Sampling;
+
+namespace Core;
 
 /// <summary>
 /// Determines how a surface interacts with light (§3.8).

@@ -1,6 +1,7 @@
 <Solution>
   <Project Path="Core.Tests/Core.Tests.csproj" />
   <Project Path="Core/Core.csproj" />
+  <Project Path="Engine.Tests/Engine.Tests.csproj" Id="c86f89ce-27e3-49c1-aed4-d79d20233e6e" />
   <Project Path="Engine/Engine.csproj" />
   <Project Path="Render/Render.csproj" Id="f55bdbfc-509b-4d7a-952f-4ab6da45ab12" />
 </Solution>

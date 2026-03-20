@@ -1,4 +1,7 @@
-﻿namespace Core;
+﻿using Core.Algebra;
+using Core.Sampling;
+
+namespace Core;
 
 /// <summary>
 /// Implemented by any light source that supports direct sampling for MIS (§3.7.3).
