@@ -58,6 +58,10 @@ public sealed class MisIntegrator
                     out var attenuation, out var scattered))
                 break;
 
+            // Carry shutter time forward so shadow rays and child rays
+            // intersect moving primitives at the same moment (§3.2.2)
+            scattered = scattered with { Time = ray.Time };
+
             var brdfPdf = hit.Material.Pdf(ray, hit, scattered);
 
             // Delta distributions (mirror, glass) — skip MIS light sampling
@@ -128,7 +132,7 @@ public sealed class MisIntegrator
             {
                 // Cast shadow ray — slightly shorter than full distance to avoid
                 // self-intersection with the light surface itself
-                var shadowRay = new Ray(hit.Point, lightDir, TMax: distToLight - 1e-4);
+                var shadowRay = new Ray(hit.Point, lightDir, TMax: distToLight - 1e-4, Time: rayIn.Time);
                 if (!scene.Hit(shadowRay, out _))
                 {
                     // Light is visible — evaluate BRDF at light direction

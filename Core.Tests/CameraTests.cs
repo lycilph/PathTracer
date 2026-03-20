@@ -82,4 +82,69 @@ public class CameraTests
 
         wideRay.Direction.X.Should().BeGreaterThan(narrowRay.Direction.X);
     }
+
+    [Fact]
+    public void GenerateRay_ZeroAperture_SameOriginEveryTime()
+    {
+        // Pinhole camera — all rays from same origin regardless of sampler
+        var cam = MakeCamera();
+        var s1 = new Sampler(1);
+        var s2 = new Sampler(2);
+
+        var r1 = cam.GenerateRay(50, 50, 0.5, 0.5, s1);
+        var r2 = cam.GenerateRay(50, 50, 0.5, 0.5, s2);
+
+        r1.Origin.Should().Be(r2.Origin);
+    }
+
+    [Fact]
+    public void GenerateRay_NonZeroAperture_JittersOrigin()
+    {
+        // Thin-lens camera — rays should originate from different points
+        var cam = new Camera(
+            position: new Vector3(0, 0, 3),
+            lookAt: Vector3.Zero,
+            up: Vector3.UnitY,
+            vFovDegrees: 90,
+            imageWidth: 100,
+            imageHeight: 100,
+            aperture: 0.5,
+            focusDistance: 3.0);
+
+        var origins = Enumerable.Range(0, 20)
+            .Select(i => cam.GenerateRay(50, 50, 0.5, 0.5, new Sampler(i)).Origin)
+            .ToList();
+
+        // Not all origins should be identical
+        origins.Distinct().Should().HaveCountGreaterThan(1);
+    }
+
+    [Fact]
+    public void GenerateRay_WithShutterTime_RaysHaveDifferentTimes()
+    {
+        var cam = new Camera(
+            position: new Vector3(0, 0, 3),
+            lookAt: Vector3.Zero,
+            up: Vector3.UnitY,
+            vFovDegrees: 90,
+            imageWidth: 100,
+            imageHeight: 100,
+            shutterOpen: 0.0,
+            shutterClose: 1.0);
+
+        var times = Enumerable.Range(0, 20)
+            .Select(i => cam.GenerateRay(50, 50, 0.5, 0.5, new Sampler(i)).Time)
+            .ToList();
+
+        times.Distinct().Should().HaveCountGreaterThan(1);
+        times.Should().AllSatisfy(t => t.Should().BeInRange(0.0, 1.0));
+    }
+
+    [Fact]
+    public void GenerateRay_NoShutterTime_RaysHaveTimeZero()
+    {
+        var cam = MakeCamera();
+        var ray = cam.GenerateRay(50, 50, 0.5, 0.5, new Sampler(0));
+        ray.Time.Should().Be(0.0);
+    }
 }

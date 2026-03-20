@@ -8,11 +8,17 @@
 /// <param name="Direction">The unit direction of the ray. Must be normalised by the caller.</param>
 /// <param name="TMin">Minimum valid t value. Default 1e-4 avoids self-intersection.</param>
 /// <param name="TMax">Maximum valid t value. Default infinity means unbounded.</param>
+/// <param name="Time">
+/// The time at which this ray exists, in [shutterOpen, shutterClose].
+/// Used by moving primitives to interpolate their position (§3.2.2).
+/// Static primitives ignore this value.
+/// </param>
 public readonly record struct Ray(
     Vector3 Origin,
     Vector3 Direction,
     double TMin = 1e-4,
-    double TMax = double.PositiveInfinity)
+    double TMax = double.PositiveInfinity,
+    double Time = 0.0)
 {
     /// <summary>
     /// Evaluates the ray equation P(t) = O + t·D.

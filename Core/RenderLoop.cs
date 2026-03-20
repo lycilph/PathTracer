@@ -71,7 +71,7 @@ public sealed class RenderLoop
             for (var x = x0; x < x1; x++)
                 for (var s = 0; s < samplesPerPixel; s++)
                 {
-                    var ray = camera.GenerateRay(x, y, sampler.Next(), sampler.Next());
+                    var ray = camera.GenerateRay(x, y, sampler.Next(), sampler.Next(), sampler);
                     var radiance = traceFunc(ray, sampler);
                     frameBuffer.AddSample(x, y, radiance);
                 }
