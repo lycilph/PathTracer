@@ -6,4 +6,5 @@
   <Project Path="Render/Render.csproj" Id="f55bdbfc-509b-4d7a-952f-4ab6da45ab12" />
   <Project Path="ScriptApi.Tests/ScriptApi.Tests.csproj" Id="d8ca0979-72cb-462f-9605-96af8d025c13" />
   <Project Path="ScriptApi/ScriptApi.csproj" Id="cbe3e6f8-0632-4390-bd72-23c30676110a" />
+  <Project Path="UI/UI.csproj" Id="631b5036-531e-4f60-a059-3edd865bb8e6" />
 </Solution>
