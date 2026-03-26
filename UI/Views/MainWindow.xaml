@@ -328,6 +328,49 @@
                                        Style="{StaticResource StatValue}"/>
                         </Grid>
 
+
+                        <!-- Photon Mapping Stats — only visible when using photon mapping -->
+                        <StackPanel Visibility="{Binding IsPhotonMapping,
+                                    Converter={StaticResource BoolToVisibility}}">
+
+                                <TextBlock Text="Photon Mapping"
+                                           Style="{StaticResource StatSectionHeader}"/>
+
+                                <Separator Margin="0,0,0,8"/>
+
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition/>
+                                        <RowDefinition/>
+                                        <RowDefinition/>
+                                    </Grid.RowDefinitions>
+
+                                    <TextBlock Grid.Row="0" Grid.Column="0"
+                                               Text="Pass"
+                                               Style="{StaticResource StatLabel}"/>
+                                    <TextBlock Grid.Row="0" Grid.Column="1"
+                                               Text="{Binding CurrentPassText}"
+                                               Style="{StaticResource StatValue}"/>
+
+                                    <TextBlock Grid.Row="1" Grid.Column="0"
+                                               Text="Total Photons"
+                                               Style="{StaticResource StatLabel}"/>
+                                    <TextBlock Grid.Row="1" Grid.Column="1"
+                                               Text="{Binding TotalPhotonsText}"
+                                               Style="{StaticResource StatValue}"/>
+
+                                    <TextBlock Grid.Row="2" Grid.Column="0"
+                                               Text="Avg Radius"
+                                               Style="{StaticResource StatLabel}"/>
+                                <TextBlock Grid.Row="2" Grid.Column="1"
+                                           Text="{Binding AverageRadiusText}"
+                                           Style="{StaticResource StatValue}"/>
+                            </Grid>
+                        </StackPanel>
                     </StackPanel>
                 </ScrollViewer>
 

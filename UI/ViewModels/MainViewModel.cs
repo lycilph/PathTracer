@@ -5,6 +5,7 @@ using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Engine.Rendering;
+using ScriptApi;
 using ScriptApi.Validation;
 using UI.Rendering;
 using UI.Scripting;
@@ -191,42 +192,73 @@ public sealed partial class MainViewModel : ObservableObject
             StatusText = "Rendering...";
 
             // ── Render ────────────────────────────────────────────────────────
-            var renderer = new ProgressiveRenderer();
 
-            // Populate scene info
+            // ── Populate scene info ───────────────────────────────────────────────────
             PrimitiveCountText = scene.PrimitiveCount.ToString();
             LightCountText = scene.Lights.Count.ToString();
             AcceleratorTypeText = scene.Scene.GetType().Name;
             ResolutionText = $"{scene.Settings.ImageWidth} × {scene.Settings.ImageHeight}";
-            SamplesText = $"{scene.Settings.SamplesPerPixel} spp";
+            SamplesText = scene.Integrator.Type == IntegratorType.PathTracing
+                ? $"{scene.Settings.SamplesPerPixel} spp"
+                : $"PPM — {scene.Integrator.PhotonsPerPass:N0} photons/pass";
 
-            // Store for statistics calculation
-            _tileSize = renderer.TileSize;
+            IsPhotonMapping = scene.Integrator.Type == IntegratorType.PhotonMapping;
+
+            _tileSize = 16;
             _samplesPerPixel = scene.Settings.SamplesPerPixel;
-            var _tilesX = (int)Math.Ceiling((double)scene.Settings.ImageWidth / _tileSize);
-            var _tilesY = (int)Math.Ceiling((double)scene.Settings.ImageHeight / _tileSize);
-            _totalTiles = _tilesX * _tilesY;
             _renderStartTime = DateTime.UtcNow;
             CanSaveImage = false;
 
-            var frameBuffer = await renderer.RenderAsync(
-                scene,
-                onProgress: progress =>
-                {
-                    Application.Current.Dispatcher.Invoke(() =>
-                        UpdateProgress(progress));
-                },
-                cancellationToken: _cts.Token);
+            Engine.Rendering.FrameBuffer frameBuffer;
+
+            if (scene.Integrator.Type == IntegratorType.PhotonMapping)
+            {
+                // ── Photon mapping renderer ───────────────────────────────────────
+                _photonRenderer = new PhotonMappingRenderer();
+                var tilesX = (int)Math.Ceiling(
+                    (double)scene.Settings.ImageWidth / _photonRenderer.TileSize);
+                var tilesY = (int)Math.Ceiling(
+                    (double)scene.Settings.ImageHeight / _photonRenderer.TileSize);
+                _totalTiles = tilesX * tilesY;
+
+                frameBuffer = await _photonRenderer.RenderAsync(
+                    scene,
+                    onProgress: progress =>
+                    {
+                        Application.Current.Dispatcher.Invoke(() =>
+                            UpdatePhotonProgress(progress));
+                    },
+                    cancellationToken: _cts.Token);
+            }
+            else
+            {
+                // ── Progressive path tracing renderer ────────────────────────────
+                var renderer = new ProgressiveRenderer();
+                var tilesX = (int)Math.Ceiling(
+                    (double)scene.Settings.ImageWidth / renderer.TileSize);
+                var tilesY = (int)Math.Ceiling(
+                    (double)scene.Settings.ImageHeight / renderer.TileSize);
+                _totalTiles = tilesX * tilesY;
+                _tileSize = renderer.TileSize;
+
+                frameBuffer = await renderer.RenderAsync(
+                    scene,
+                    onProgress: progress =>
+                    {
+                        Application.Current.Dispatcher.Invoke(() =>
+                            UpdateProgress(progress));
+                    },
+                    cancellationToken: _cts.Token);
+            }
 
             // Always display the final frame
             Application.Current.Dispatcher.Invoke(() => UpdateBitmap(frameBuffer));
 
             StatusText = _cts.Token.IsCancellationRequested
                 ? "Render aborted"
-                : $"Done — {scene.Settings.SamplesPerPixel} spp";
-
-            CanSaveImage = !(_cts?.IsCancellationRequested ?? false);
-            SaveImageCommand.NotifyCanExecuteChanged();
+                : IsPhotonMapping
+                    ? $"Done — {CurrentPassText} passes"
+                    : $"Done — {scene.Settings.SamplesPerPixel} spp";
         }
         catch (OperationCanceledException)
         {
@@ -369,7 +401,6 @@ public sealed partial class MainViewModel : ObservableObject
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
-
     private void LoadScriptFromPath(string path)
     {
         try
@@ -421,6 +452,28 @@ public sealed partial class MainViewModel : ObservableObject
         TilesPerSecText = $"{tilesPerSec:F1}";
         RaysPerSecText = FormatRaysPerSec(raysPerSec);
         ProgressText = $"{progress.PercentComplete:F0}%  {elapsed:mm\\:ss}";
+
+        // Throttle bitmap updates to ~10fps
+        var now = DateTime.UtcNow;
+        if ((now - _lastBitmapUpdate).TotalMilliseconds >= 100)
+        {
+            UpdateBitmap(progress.FrameBuffer);
+            _lastBitmapUpdate = now;
+        }
+    }
+
+    private void UpdatePhotonProgress(PhotonMappingProgress progress)
+    {
+        CurrentPassText = progress.Pass.ToString();
+        TotalPhotonsText = FormatRaysPerSec(progress.TotalPhotons);
+        AverageRadiusText = $"{progress.AverageRadius:F4}";
+
+        var elapsed = progress.Elapsed;
+        ElapsedText = elapsed.ToString(@"mm\:ss");
+        ProgressText = $"Pass {progress.Pass}" +
+                       $"  {progress.TotalPhotons:N0} photons" +
+                       $"  r={progress.AverageRadius:F4}" +
+                       $"  {elapsed:mm\\:ss}";
 
         // Throttle bitmap updates to ~10fps
         var now = DateTime.UtcNow;

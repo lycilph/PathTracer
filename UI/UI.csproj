@@ -17,6 +17,7 @@
     <Compile Remove="Scenes\06_caustics.cs" />
     <Compile Remove="Scenes\07_roughness_comparison.cs" />
     <Compile Remove="Scenes\08_bunny.cs" />
+    <Compile Remove="Scenes\09_photon_mapping.cs" />
   </ItemGroup>
 
   <ItemGroup>
@@ -45,6 +46,12 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="Scenes\08_bunny.cs">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Scenes\09_photon_mapping.cs">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
