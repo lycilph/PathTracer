@@ -34,7 +34,9 @@ public sealed class SceneDescription
     /// </summary>
     public ValidationResult Validation { get; }
 
-    /// <summary>
+    /// <summary>The integrator settings for this scene.</summary>
+    public IntegratorSettings Integrator { get; }
+
     /// Total number of primitives in the scene including area lights.
     /// </summary>
     public int PrimitiveCount { get; }
@@ -45,6 +47,7 @@ public sealed class SceneDescription
         IHittable scene,
         IReadOnlyList<ILight> lights,
         int primitiveCount,
+        IntegratorSettings integrator,
         ValidationResult validation)
     {
         Camera = camera;
@@ -52,6 +55,7 @@ public sealed class SceneDescription
         Scene = scene;
         Lights = lights;
         PrimitiveCount = primitiveCount;
+        Integrator = integrator;
         Validation = validation;
     }
 }

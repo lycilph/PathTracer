@@ -23,6 +23,7 @@ public sealed partial class MainViewModel : ObservableObject
     private DateTime _lastBitmapUpdate = DateTime.MinValue;
     private readonly RecentFilesService _recentFilesService = new();
     private IReadOnlyList<ScriptError> _lastScriptErrors = [];
+    private PhotonMappingRenderer? _photonRenderer;
 
     // Statistics
     private int _totalTiles;
@@ -76,6 +77,20 @@ public sealed partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     private string _raysPerSecText = string.Empty;
+
+    // ── Photon mapping stats ──────────────────────────────────────────────────
+
+    [ObservableProperty]
+    private bool _isPhotonMapping;
+
+    [ObservableProperty]
+    private string _currentPassText = string.Empty;
+
+    [ObservableProperty]
+    private string _totalPhotonsText = string.Empty;
+
+    [ObservableProperty]
+    private string _averageRadiusText = string.Empty;
 
     // ── Scene info ────────────────────────────────────────────────────────────
 

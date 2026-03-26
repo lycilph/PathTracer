@@ -1,4 +1,5 @@
-﻿using Core.Algebra;
+﻿using Core;
+using Core.Algebra;
 
 namespace ScriptApi.Validation;
 
@@ -21,6 +22,7 @@ internal static class SceneValidator
         ValidateGeometry(state, result);
         ValidateLights(state, result);
         ValidatePrimitiveNames(state, result);
+        ValidateIntegrator(state, result);
 
         return result;
     }
@@ -78,6 +80,53 @@ internal static class SceneValidator
             result.AddWarning(
                 $"Samples per pixel is very low ({state.SamplesPerPixel}). " +
                 "The image will be very noisy.");
+    }
+
+    private static void ValidateIntegrator(SceneBuilderState state,
+                                           ValidationResult result)
+    {
+        if (state.Integrator.Type != IntegratorType.PhotonMapping)
+            return;
+
+        if (state.Integrator.PhotonsPerPass <= 0)
+            result.AddError(
+                "Photons per pass must be positive, got " +
+                $"{state.Integrator.PhotonsPerPass}.");
+
+        if (state.Integrator.InitialRadius <= 0)
+            result.AddError(
+                "Initial radius must be positive, got " +
+                $"{state.Integrator.InitialRadius}.");
+
+        if (state.Integrator.KNearest <= 0)
+            result.AddError(
+                "KNearest must be positive, got " +
+                $"{state.Integrator.KNearest}.");
+
+        if (state.Integrator.Alpha <= 0 || state.Integrator.Alpha > 1)
+            result.AddWarning(
+                $"Alpha ({state.Integrator.Alpha}) should be in (0, 1]. " +
+                "Spec recommends ≈ 0.7.");
+
+        if (state.Integrator.PhotonsPerPass < 10_000)
+            result.AddWarning(
+                $"PhotonsPerPass ({state.Integrator.PhotonsPerPass}) is low. " +
+                "Consider at least 100,000 for good results.");
+
+        if (state.Integrator.InitialRadius > 1.0)
+            result.AddWarning(
+                $"InitialRadius ({state.Integrator.InitialRadius}) is large. " +
+                "This may produce blurry results initially.");
+
+        if (state.Integrator.KNearest < 10)
+            result.AddWarning(
+                $"KNearest ({state.Integrator.KNearest}) is very low. " +
+                "Results may be noisy.");
+
+        var hasLights = state.Primitives.Any(p => p is AreaLightPrimitive);
+        if (!hasLights)
+            result.AddError(
+                "Photon mapping requires at least one area light source.");
     }
 
     private static void ValidateGeometry(SceneBuilderState state,

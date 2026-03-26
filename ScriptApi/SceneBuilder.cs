@@ -83,6 +83,8 @@ internal sealed class SceneBuilderState
     public int SamplesPerPixel { get; set; }
     public Vector3 BackgroundRadiance { get; set; }
 
+    public IntegratorSettings Integrator { get; set; } = IntegratorSettings.PathTracing();
+
     // Primitives
     public List<PrimitiveEntry> Primitives { get; } = [];
 }
@@ -162,6 +164,20 @@ public sealed class SceneBuilder
         _state.ImageHeight = imageHeight;
         _state.SamplesPerPixel = samplesPerPixel;
         _state.BackgroundRadiance = backgroundRadiance ?? Vector3.Zero;
+        return this;
+    }
+    
+    /// <summary>
+    /// Configures the integrator for this scene.
+    /// Defaults to path tracing if not called.
+    /// </summary>
+    /// <param name="settings">
+    /// Use <see cref="IntegratorSettings.PathTracing"/> or
+    /// <see cref="IntegratorSettings.PhotonMapping"/> factory methods.
+    /// </param>
+    public SceneBuilder WithIntegrator(IntegratorSettings settings)
+    {
+        _state.Integrator = settings;
         return this;
     }
 
@@ -378,6 +394,13 @@ public sealed class SceneBuilder
         var scene = sceneList.Build();
         var primitiveCount = _state.Primitives.Count;
 
-        return new SceneDescription(camera, settings, scene, lights, primitiveCount, validation);
+        return new SceneDescription(
+            camera,
+            settings,
+            scene,
+            lights,
+            primitiveCount,
+            _state.Integrator,
+            validation);
     }
 }
