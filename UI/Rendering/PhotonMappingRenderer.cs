@@ -1,6 +1,7 @@
 ﻿using Core.Sampling;
 using Engine.Integrators;
 using Engine.PhotonMapping;
+using Engine.PhotonMapping.DebugVisualization;
 using Engine.Rendering;
 using ScriptApi;
 
@@ -223,5 +224,24 @@ public sealed class PhotonMappingRenderer
             hash = (hash ^ ty) * 16777619;
             return hash;
         }
+    }
+
+    /// <summary>
+    /// Creates a debug render context from the last rendered scene.
+    /// Returns null if no scene has been rendered yet.
+    /// </summary>
+    public DebugRenderContext? GetDebugContext()
+    {
+        if (_lastScene is null) return null;
+
+        return new DebugRenderContext(
+            _lastScene.Camera,
+            _lastScene.Scene,
+            _lastScene.Lights,
+            _lastScene.Settings.ImageWidth,
+            _lastScene.Settings.ImageHeight,
+            _lastScene.Settings.BackgroundRadiance,
+            _lastScene.Integrator.KNearest,
+            _lastScene.Integrator.Alpha);
     }
 }

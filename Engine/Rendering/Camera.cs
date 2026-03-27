@@ -128,4 +128,45 @@ public sealed class Camera
                 return p;
         }
     }
+
+    /// <summary>
+    /// Projects a world-space point onto the image plane.
+    /// Returns null if the point is behind the camera or outside
+    /// the image bounds.
+    /// </summary>
+    /// <param name="worldPoint">The world-space point to project.</param>
+    /// <returns>
+    /// Screen-space pixel coordinates (x, y), or null if not visible.
+    /// </returns>
+    public (int x, int y)? ProjectToScreen(Vector3 worldPoint)
+    {
+        // Transform point to camera space
+        var toPoint = worldPoint - _origin;
+
+        // Project onto the image plane using the camera basis vectors
+        var forward = (_lowerLeft + 0.5 * _horizontal + 0.5 * _vertical
+                       - _origin).Normalize();
+
+        var dotForward = Vector3.Dot(toPoint, forward);
+
+        // Behind the camera
+        if (dotForward <= 0) return null;
+
+        // Project onto horizontal and vertical axes
+        var u = Vector3.Dot(toPoint, _right.Normalize()) / dotForward;
+        var v = Vector3.Dot(toPoint, _up.Normalize()) / dotForward;
+
+        // Convert to screen coordinates
+        var halfWidth = _horizontal.Length / 2.0;
+        var halfHeight = _vertical.Length / 2.0;
+
+        var screenX = (int)((u / halfWidth + 1.0) * 0.5 * ImageWidth);
+        var screenY = (int)((1.0 - v / halfHeight) * 0.5 * ImageHeight);
+
+        if (screenX < 0 || screenX >= ImageWidth ||
+            screenY < 0 || screenY >= ImageHeight)
+            return null;
+
+        return (screenX, screenY);
+    }
 }

@@ -4,6 +4,8 @@ using System.Windows;
 using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Engine.PhotonMapping.Debug;
+using Engine.PhotonMapping.DebugVisualization;
 using Engine.Rendering;
 using ScriptApi;
 using ScriptApi.Validation;
@@ -25,6 +27,7 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly RecentFilesService _recentFilesService = new();
     private IReadOnlyList<ScriptError> _lastScriptErrors = [];
     private PhotonMappingRenderer? _photonRenderer;
+    private FrameBuffer? _frameBuffer;
 
     // Statistics
     private int _totalTiles;
@@ -103,6 +106,19 @@ public sealed partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     private string _acceleratorTypeText = string.Empty;
+
+    // ── Debug visualization ───────────────────────────────────────────────────
+
+    private readonly PhotonDebugRenderer _debugRenderer = new();
+
+    [ObservableProperty]
+    private PhotonDebugMode _selectedDebugMode = PhotonDebugMode.None;
+
+    [ObservableProperty]
+    private bool _canApplyDebugView;
+
+    public IReadOnlyList<PhotonDebugMode> AvailableDebugModes { get; } =
+        Enum.GetValues<PhotonDebugMode>().ToList();
 
     // ── Image saving ──────────────────────────────────────────────────────────
 
@@ -207,9 +223,12 @@ public sealed partial class MainViewModel : ObservableObject
             _tileSize = 16;
             _samplesPerPixel = scene.Settings.SamplesPerPixel;
             _renderStartTime = DateTime.UtcNow;
-            CanSaveImage = false;
 
-            Engine.Rendering.FrameBuffer frameBuffer;
+            CanSaveImage = false;
+            SaveImageCommand.NotifyCanExecuteChanged();
+
+            CanApplyDebugView = false;
+            ApplyDebugViewCommand.NotifyCanExecuteChanged();
 
             if (scene.Integrator.Type == IntegratorType.PhotonMapping)
             {
@@ -221,7 +240,7 @@ public sealed partial class MainViewModel : ObservableObject
                     (double)scene.Settings.ImageHeight / _photonRenderer.TileSize);
                 _totalTiles = tilesX * tilesY;
 
-                frameBuffer = await _photonRenderer.RenderAsync(
+                _frameBuffer = await _photonRenderer.RenderAsync(
                     scene,
                     onProgress: progress =>
                     {
@@ -241,7 +260,7 @@ public sealed partial class MainViewModel : ObservableObject
                 _totalTiles = tilesX * tilesY;
                 _tileSize = renderer.TileSize;
 
-                frameBuffer = await renderer.RenderAsync(
+                _frameBuffer = await renderer.RenderAsync(
                     scene,
                     onProgress: progress =>
                     {
@@ -252,7 +271,7 @@ public sealed partial class MainViewModel : ObservableObject
             }
 
             // Always display the final frame
-            Application.Current.Dispatcher.Invoke(() => UpdateBitmap(frameBuffer));
+            Application.Current.Dispatcher.Invoke(() => UpdateBitmap(_frameBuffer));
 
             StatusText = _cts.Token.IsCancellationRequested
                 ? "Render aborted"
@@ -273,8 +292,20 @@ public sealed partial class MainViewModel : ObservableObject
         finally
         {
             IsRendering = false;
+            
             _cts?.Dispose();
             _cts = null;
+
+            // After render completes, in the finally block
+            CanSaveImage = !(_cts?.IsCancellationRequested ?? false);
+            SaveImageCommand.NotifyCanExecuteChanged();
+
+            // Enable debug view only for completed photon mapping renders
+            CanApplyDebugView = IsPhotonMapping &&
+                                !(_cts?.IsCancellationRequested ?? false) &&
+                                _photonRenderer?.LastPhotonMap is not null;
+            ApplyDebugViewCommand.NotifyCanExecuteChanged();
+
             RunCommand.NotifyCanExecuteChanged();
             AbortCommand.NotifyCanExecuteChanged();
         }
@@ -397,6 +428,35 @@ public sealed partial class MainViewModel : ObservableObject
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
         }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanApplyDebugView))]
+    private async Task ApplyDebugViewAsync()
+    {
+        StatusText = $"Applying debug view: {SelectedDebugMode}...";
+
+        if (SelectedDebugMode == PhotonDebugMode.None)
+        {
+            UpdateBitmap(_frameBuffer!);
+            return;
+        }
+
+        if (_photonRenderer?.LastPhotonMap is null ||
+            _photonRenderer?.LastPixelStates is null)
+            return;
+
+        var context = _photonRenderer.GetDebugContext();
+        if (context is null) return;
+
+        var debugFb = await Task.Run(() =>
+            _debugRenderer.Render(
+                SelectedDebugMode,
+                _photonRenderer.LastPhotonMap,
+                _photonRenderer.LastPixelStates,
+                context));
+
+        UpdateBitmap(debugFb);
+        StatusText = $"Debug view: {SelectedDebugMode}";
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────

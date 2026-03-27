@@ -76,10 +76,16 @@ internal static class SceneValidator
             result.AddError(
                 $"Samples per pixel must be positive, got {state.SamplesPerPixel}.");
 
-        if (state.SamplesPerPixel < 4)
+        if (state.Integrator.Type == IntegratorType.PathTracing && state.SamplesPerPixel < 4)
             result.AddWarning(
                 $"Samples per pixel is very low ({state.SamplesPerPixel}). " +
                 "The image will be very noisy.");
+
+        if (state.Integrator.Type == IntegratorType.PhotonMapping && state.SamplesPerPixel > 1)
+            result.AddWarning(
+                $"SamplesPerPixel ({state.SamplesPerPixel}) is ignored when using " +
+                "photon mapping — the renderer iterates by passes instead. " +
+                "Set samplesPerPixel to 1 to suppress this warning.");
     }
 
     private static void ValidateIntegrator(SceneBuilderState state,
@@ -87,6 +93,25 @@ internal static class SceneValidator
     {
         if (state.Integrator.Type != IntegratorType.PhotonMapping)
             return;
+
+        if (state.Integrator.Type == IntegratorType.PathTracing)
+        {
+            var hasGlass = state.Primitives
+                .OfType<SpherePrimitive>()
+                .Any(s => s.Material is Engine.Materials.Dielectric)
+                || state.Primitives
+                .OfType<QuadPrimitive>()
+                .Any(q => q.Material is Engine.Materials.Dielectric);
+
+            if (hasGlass)
+                result.AddWarning(
+                    "Scene contains dielectric (glass) materials. " +
+                    "Consider using photon mapping for better caustic rendering — " +
+                    "add .WithIntegrator(IntegratorSettings.PhotonMapping(...)) " +
+                    "to your scene script.");
+        }
+
+       
 
         if (state.Integrator.PhotonsPerPass <= 0)
             result.AddError(

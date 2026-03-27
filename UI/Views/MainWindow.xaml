@@ -371,6 +371,29 @@
                                            Style="{StaticResource StatValue}"/>
                             </Grid>
                         </StackPanel>
+
+                        <!-- Debug visualization — only when photon mapping render is complete -->
+                        <StackPanel Visibility="{Binding CanApplyDebugView,
+                                    Converter={StaticResource BoolToVisibility}}">
+
+                            <TextBlock Text="Debug View"
+                                       Style="{StaticResource StatSectionHeader}"/>
+
+                            <Separator Margin="0,0,0,8"/>
+
+                            <TextBlock Text="Mode"
+                                       Style="{StaticResource StatLabel}"
+                                       Margin="0,0,0,4"/>
+
+                            <ComboBox ItemsSource="{Binding AvailableDebugModes}"
+                                      SelectedItem="{Binding SelectedDebugMode}"
+                                      Margin="0,0,0,8"/>
+
+                            <Button Content="Apply Debug View"
+                                    Command="{Binding ApplyDebugViewCommand}"
+                                    Padding="8,4"
+                                    HorizontalAlignment="Stretch"/>
+                        </StackPanel>
                     </StackPanel>
                 </ScrollViewer>
 
