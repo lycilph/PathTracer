@@ -42,20 +42,50 @@ public sealed class PhotonMapIntegrator
     }
 
     /// <summary>
-    /// Traces a ray and estimates the total radiance — direct via MIS
-    /// and indirect/caustic via the photon map.
+    /// Traces direct lighting only using MIS.
+    /// Called once per pixel per pass and accumulated across passes.
     /// </summary>
-    /// <param name="ray">The primary ray to trace.</param>
-    /// <param name="scene">The scene to trace against.</param>
-    /// <param name="lights">Samplable lights for direct lighting.</param>
-    /// <param name="photonMap">The current photon map.</param>
-    /// <param name="pixelStates">
-    /// Per-pixel PPM state array indexed by pixel index.
-    /// </param>
-    /// <param name="pixelIndex">
-    /// Index into <paramref name="pixelStates"/> for this ray.
-    /// </param>
-    /// <param name="sampler">Per-thread sampler.</param>
+    public Vector3 TraceDirect(
+        Ray ray,
+        IHittable scene,
+        IReadOnlyList<ILight> lights,
+        Sampler sampler)
+    {
+        if (!scene.Hit(ray, out var hit))
+            return BackgroundRadiance;
+
+        // Hit an emissive surface
+        if (hit.Material is Materials.Emissive emissive)
+            return emissive.Emit();
+
+        // Only compute direct lighting at diffuse surfaces
+        if (hit.Material is not Materials.Lambertian)
+            return _directLightingIntegrator.Trace(ray, scene, lights, sampler);
+
+        return _directLightingIntegrator.Trace(ray, scene, lights, sampler);
+    }
+
+    /// <summary>
+    /// Estimates indirect + caustic radiance only using the photon map.
+    /// Called once per pixel per pass — replaces previous indirect estimate.
+    /// </summary>
+    public Vector3 TraceIndirect(
+        Ray ray,
+        IHittable scene,
+        PhotonMap photonMap,
+        PixelEstimationState[] pixelStates,
+        int pixelIndex)
+    {
+        var hit = FindVisibleDiffusePoint(ray, scene);
+        if (hit is null) return Vector3.Zero;
+
+        ref var state = ref pixelStates[pixelIndex];
+        return _radianceEstimator.Estimate(hit.Value, photonMap, ref state);
+    }
+
+    /// <summary>
+    /// Combined trace — direct + indirect. Used for single-pass rendering.
+    /// </summary>
     public Vector3 Trace(
         Ray ray,
         IHittable scene,
@@ -65,27 +95,9 @@ public sealed class PhotonMapIntegrator
         int pixelIndex,
         Sampler sampler)
     {
-        // Find the first visible surface point
-        if (!scene.Hit(ray, out var hit))
-            return BackgroundRadiance;
-
-        // Hit an emissive surface — return emission directly
-        if (hit.Material is Materials.Emissive emissive)
-            return emissive.Emit();
-
-        // ── Direct lighting via MIS ───────────────────────────────────────
-        var direct = _directLightingIntegrator.Trace(
-            ray, scene, lights, sampler);
-
-        // ── Indirect + caustic via photon map ─────────────────────────────
-        // Only estimate at diffuse surfaces
-        if (hit.Material is not Materials.Lambertian)
-            return direct;
-
-        ref var state = ref pixelStates[pixelIndex];
-        var indirect = _radianceEstimator.Estimate(hit, photonMap,
-                                                    ref state);
-
+        var direct = TraceDirect(ray, scene, lights, sampler);
+        var indirect = TraceIndirect(ray, scene, photonMap,
+                                     pixelStates, pixelIndex);
         return direct + indirect;
     }
 

@@ -8,37 +8,23 @@ using ScriptApi;
 namespace UI.Rendering;
 
 /// <summary>
-/// Renders a scene using Progressive Photon Mapping.
-/// Each pass emits photons, estimates radiance and updates the frame buffer.
-/// The radius shrinks each pass as per the PPM update rule (§3.11.4).
+/// Renders a scene using Progressive Photon Mapping with separate
+/// accumulation of direct and indirect lighting components.
+/// Direct lighting accumulates across passes (like path tracing).
+/// Indirect lighting is re-estimated each pass with shrinking radius.
 /// </summary>
 public sealed class PhotonMappingRenderer
 {
-    /// <summary>Tile size in pixels for ray tracing passes.</summary>
     public int TileSize { get; init; } = 16;
 
-    // Photon map and pixel states are preserved between passes
-    // for debug visualization after rendering completes
+    // Preserved for debug visualization
     private PhotonMap? _lastPhotonMap;
     private PixelEstimationState[]? _lastPixelStates;
     private SceneDescription? _lastScene;
 
-    /// <summary>The photon map from the last completed pass.</summary>
     public PhotonMap? LastPhotonMap => _lastPhotonMap;
-
-    /// <summary>The pixel estimation states from the last completed pass.</summary>
     public PixelEstimationState[]? LastPixelStates => _lastPixelStates;
 
-    /// <summary>
-    /// Renders the scene using PPM, reporting progress after each pass.
-    /// </summary>
-    /// <param name="scene">The fully built scene description.</param>
-    /// <param name="onProgress">
-    /// Callback invoked after each PPM pass completes.
-    /// Called on a thread pool thread — marshal to UI thread if needed.
-    /// </param>
-    /// <param name="cancellationToken">Token to cancel rendering.</param>
-    /// <returns>The final frame buffer.</returns>
     public Task<FrameBuffer> RenderAsync(
         SceneDescription scene,
         Action<PhotonMappingProgress>? onProgress = null,
@@ -58,13 +44,15 @@ public sealed class PhotonMappingRenderer
         var settings = scene.Integrator;
         var width = scene.Settings.ImageWidth;
         var height = scene.Settings.ImageHeight;
-        var fb = new FrameBuffer(width, height);
 
-        // Initialise per-pixel PPM state
+        // Two separate frame buffers
+        var directFb = new FrameBuffer(width, height);
+        var indirectFb = new FrameBuffer(width, height);
+
+        // Per-pixel PPM state
         var pixelStates = Enumerable
             .Range(0, width * height)
-            .Select(_ => PixelEstimationState.Initial(
-                settings.InitialRadius))
+            .Select(_ => PixelEstimationState.Initial(settings.InitialRadius))
             .ToArray();
 
         var integrator = new PhotonMapIntegrator(
@@ -82,11 +70,12 @@ public sealed class PhotonMappingRenderer
             ? int.MaxValue
             : settings.MaxPasses;
 
-        while (pass < maxPasses && !cancellationToken.IsCancellationRequested)
+        while (pass < maxPasses &&
+               !cancellationToken.IsCancellationRequested)
         {
             pass++;
 
-            // ── Pass 1: Emit photons ──────────────────────────────────────
+            // ── Emit photons ──────────────────────────────────────────────
             var photons = emitter.Emit(
                 settings.PhotonsPerPass,
                 scene.Scene,
@@ -95,33 +84,38 @@ public sealed class PhotonMappingRenderer
 
             if (cancellationToken.IsCancellationRequested) break;
 
-            // Build kd-tree sequentially after parallel emission
             var photonMap = new PhotonMap(photons);
             _lastPhotonMap = photonMap;
 
-            // ── Pass 2: Ray trace + radiance estimation ───────────────────
+            // ── Clear indirect buffer — replaced each pass ────────────────
+            indirectFb.Clear();
+
+            // ── Ray trace pass — direct + indirect separately ─────────────
             RayTracePass(scene, integrator, photonMap,
-                         pixelStates, fb, cancellationToken);
+                         pixelStates, directFb, indirectFb,
+                         cancellationToken);
 
             if (cancellationToken.IsCancellationRequested) break;
 
-            // Store pixel states for debug visualization
             _lastPixelStates = pixelStates.ToArray();
 
-            // Compute average radius for progress reporting
-            var avgRadius = pixelStates
-                .Average(s => s.Radius);
+            // ── Combine for display ───────────────────────────────────────
+            var combinedFb = CombineBuffers(directFb, indirectFb,
+                                            width, height, pass);
+
+            var avgRadius = pixelStates.Average(s => s.Radius);
 
             onProgress?.Invoke(new PhotonMappingProgress(
                 pass,
                 photons.Count,
                 pass * (long)photons.Count,
                 avgRadius,
-                fb,
+                combinedFb,
                 sw.Elapsed));
         }
 
-        return fb;
+        // Return final combined buffer
+        return CombineBuffers(directFb, indirectFb, width, height, pass);
     }
 
     private void RayTracePass(
@@ -129,7 +123,8 @@ public sealed class PhotonMappingRenderer
         PhotonMapIntegrator integrator,
         PhotonMap photonMap,
         PixelEstimationState[] pixelStates,
-        FrameBuffer frameBuffer,
+        FrameBuffer directFb,
+        FrameBuffer indirectFb,
         CancellationToken cancellationToken)
     {
         var width = scene.Settings.ImageWidth;
@@ -143,7 +138,7 @@ public sealed class PhotonMappingRenderer
             for (var tx = 0; tx < tilesX; tx++)
                 tiles.Add((tx, ty));
 
-        // Shuffle tiles for pleasing progressive reveal
+        // Shuffle for pleasing reveal
         var rng = new Random();
         for (var i = tiles.Count - 1; i > 0; i--)
         {
@@ -166,13 +161,10 @@ public sealed class PhotonMappingRenderer
                     var sampler = new Sampler(HashSeed(tx, ty));
 
                     RenderTile(tx, ty, scene, integrator, photonMap,
-                               pixelStates, frameBuffer, sampler);
+                               pixelStates, directFb, indirectFb, sampler);
                 });
         }
-        catch (OperationCanceledException)
-        {
-            // Return partial results
-        }
+        catch (OperationCanceledException) { }
     }
 
     private void RenderTile(
@@ -181,7 +173,8 @@ public sealed class PhotonMappingRenderer
         PhotonMapIntegrator integrator,
         PhotonMap photonMap,
         PixelEstimationState[] pixelStates,
-        FrameBuffer frameBuffer,
+        FrameBuffer directFb,
+        FrameBuffer indirectFb,
         Sampler sampler)
     {
         var width = scene.Settings.ImageWidth;
@@ -202,33 +195,44 @@ public sealed class PhotonMappingRenderer
                     sampler.Next(),
                     sampler);
 
-                var radiance = integrator.Trace(
-                    ray,
-                    scene.Scene,
-                    scene.Lights,
-                    photonMap,
-                    pixelStates,
-                    pixelIndex,
-                    sampler);
+                // Direct lighting — accumulated across passes
+                var direct = integrator.TraceDirect(
+                    ray, scene.Scene, scene.Lights, sampler);
+                directFb.AddSample(x, y, direct);
 
-                frameBuffer.AddSample(x, y, radiance);
+                // Indirect lighting — current pass only
+                var indirect = integrator.TraceIndirect(
+                    ray, scene.Scene, photonMap,
+                    pixelStates, pixelIndex);
+                indirectFb.AddSample(x, y, indirect);
             }
     }
 
-    private static int HashSeed(int tx, int ty)
+    /// <summary>
+    /// Combines direct (averaged across passes) and indirect (current pass)
+    /// into a single display buffer.
+    /// </summary>
+    private static FrameBuffer CombineBuffers(
+        FrameBuffer directFb,
+        FrameBuffer indirectFb,
+        int width, int height,
+        int pass)
     {
-        unchecked
-        {
-            var hash = (int)2166136261;
-            hash = (hash ^ tx) * 16777619;
-            hash = (hash ^ ty) * 16777619;
-            return hash;
-        }
+        var combined = new FrameBuffer(width, height);
+
+        for (var y = 0; y < height; y++)
+            for (var x = 0; x < width; x++)
+            {
+                var direct = directFb.GetPixelRadiance(x, y);
+                var indirect = indirectFb.GetPixelRadiance(x, y);
+                combined.AddSample(x, y, direct + indirect);
+            }
+
+        return combined;
     }
 
     /// <summary>
     /// Creates a debug render context from the last rendered scene.
-    /// Returns null if no scene has been rendered yet.
     /// </summary>
     public DebugRenderContext? GetDebugContext()
     {
@@ -243,5 +247,16 @@ public sealed class PhotonMappingRenderer
             _lastScene.Settings.BackgroundRadiance,
             _lastScene.Integrator.KNearest,
             _lastScene.Integrator.Alpha);
+    }
+
+    private static int HashSeed(int tx, int ty)
+    {
+        unchecked
+        {
+            var hash = (int)2166136261;
+            hash = (hash ^ tx) * 16777619;
+            hash = (hash ^ ty) * 16777619;
+            return hash;
+        }
     }
 }

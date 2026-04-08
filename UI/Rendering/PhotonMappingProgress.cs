@@ -23,10 +23,9 @@ public sealed class PhotonMappingProgress
     public double AverageRadius { get; }
 
     /// <summary>
-    /// The frame buffer accumulating radiance.
-    /// Safe to read from the callback.
+    /// The combined frame buffer (direct + indirect) for display.
     /// </summary>
-    public FrameBuffer FrameBuffer { get; }
+    public FrameBuffer CombinedFrameBuffer { get; }
 
     /// <summary>Time elapsed since rendering started.</summary>
     public TimeSpan Elapsed { get; }
@@ -36,14 +35,14 @@ public sealed class PhotonMappingProgress
         int photonsThisPass,
         long totalPhotons,
         double averageRadius,
-        FrameBuffer frameBuffer,
+        FrameBuffer combinedFrameBuffer,
         TimeSpan elapsed)
     {
         Pass = pass;
         PhotonsThisPass = photonsThisPass;
         TotalPhotons = totalPhotons;
         AverageRadius = averageRadius;
-        FrameBuffer = frameBuffer;
+        CombinedFrameBuffer = combinedFrameBuffer;
         Elapsed = elapsed;
     }
 }

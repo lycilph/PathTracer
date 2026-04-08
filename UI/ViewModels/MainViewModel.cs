@@ -535,11 +535,10 @@ public sealed partial class MainViewModel : ObservableObject
                        $"  r={progress.AverageRadius:F4}" +
                        $"  {elapsed:mm\\:ss}";
 
-        // Throttle bitmap updates to ~10fps
         var now = DateTime.UtcNow;
         if ((now - _lastBitmapUpdate).TotalMilliseconds >= 100)
         {
-            UpdateBitmap(progress.FrameBuffer);
+            UpdateBitmap(progress.CombinedFrameBuffer);
             _lastBitmapUpdate = now;
         }
     }
