@@ -14,8 +14,15 @@ namespace Engine.Integrators;
 /// </summary>
 public sealed class PhotonMapIntegrator
 {
-    private readonly MisIntegrator _directLightingIntegrator;
+    private MisIntegrator? _directLightingIntegrator;
     private readonly RadianceEstimator _radianceEstimator;
+
+    private MisIntegrator DirectLightingIntegrator =>
+    _directLightingIntegrator ??= new MisIntegrator
+    {
+        BackgroundRadiance = BackgroundRadiance,
+        MaxDepth = 10
+    };
 
     /// <summary>Radiance returned when a ray escapes the scene.</summary>
     public Vector3 BackgroundRadiance { get; init; } = Vector3.Zero;
@@ -28,12 +35,6 @@ public sealed class PhotonMapIntegrator
     /// </param>
     public PhotonMapIntegrator(int kNearest = 50, double alpha = 0.7)
     {
-        _directLightingIntegrator = new MisIntegrator
-        {
-            BackgroundRadiance = BackgroundRadiance,
-            MaxDepth = 3  // Shallow depth — photon map handles deep paths
-        };
-
         _radianceEstimator = new RadianceEstimator
         {
             KNearest = kNearest,
@@ -60,9 +61,9 @@ public sealed class PhotonMapIntegrator
 
         // Only compute direct lighting at diffuse surfaces
         if (hit.Material is not Materials.Lambertian)
-            return _directLightingIntegrator.Trace(ray, scene, lights, sampler);
+            return DirectLightingIntegrator.Trace(ray, scene, lights, sampler);
 
-        return _directLightingIntegrator.Trace(ray, scene, lights, sampler);
+        return DirectLightingIntegrator.Trace(ray, scene, lights, sampler);
     }
 
     /// <summary>
@@ -74,9 +75,10 @@ public sealed class PhotonMapIntegrator
         IHittable scene,
         PhotonMap photonMap,
         PixelEstimationState[] pixelStates,
-        int pixelIndex)
+        int pixelIndex,
+        Sampler sampler)
     {
-        var hit = FindVisibleDiffusePoint(ray, scene);
+        var hit = FindVisibleDiffusePoint(ray, scene, sampler);
         if (hit is null) return Vector3.Zero;
 
         ref var state = ref pixelStates[pixelIndex];
@@ -97,7 +99,7 @@ public sealed class PhotonMapIntegrator
     {
         var direct = TraceDirect(ray, scene, lights, sampler);
         var indirect = TraceIndirect(ray, scene, photonMap,
-                                     pixelStates, pixelIndex);
+                                     pixelStates, pixelIndex, sampler);
         return direct + indirect;
     }
 
@@ -109,7 +111,7 @@ public sealed class PhotonMapIntegrator
     /// The hit record of the first diffuse surface, or null if the ray
     /// escapes or hits a non-diffuse surface.
     /// </returns>
-    public HitRecord? FindVisibleDiffusePoint(Ray ray, IHittable scene)
+    public HitRecord? FindVisibleDiffusePoint(Ray ray, IHittable scene, Sampler sampler)
     {
         var currentRay = ray;
         var depth = 0;
@@ -130,7 +132,6 @@ public sealed class PhotonMapIntegrator
 
             // Follow specular surfaces (mirror, glass)
             // to find the underlying diffuse surface
-            var sampler = new Sampler(depth);
             if (!hit.Material.Scatter(currentRay, hit, sampler,
                     out _, out var scattered))
                 return null;

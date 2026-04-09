@@ -93,6 +93,7 @@ public sealed class PhotonMappingRenderer
             // ── Ray trace pass — direct + indirect separately ─────────────
             RayTracePass(scene, integrator, photonMap,
                          pixelStates, directFb, indirectFb,
+                         pass,
                          cancellationToken);
 
             if (cancellationToken.IsCancellationRequested) break;
@@ -125,6 +126,7 @@ public sealed class PhotonMappingRenderer
         PixelEstimationState[] pixelStates,
         FrameBuffer directFb,
         FrameBuffer indirectFb,
+        int pass,
         CancellationToken cancellationToken)
     {
         var width = scene.Settings.ImageWidth;
@@ -158,7 +160,7 @@ public sealed class PhotonMappingRenderer
                     if (cancellationToken.IsCancellationRequested) return;
 
                     var (tx, ty) = tile;
-                    var sampler = new Sampler(HashSeed(tx, ty));
+                    var sampler = new Sampler(HashSeed(tx, ty, pass));
 
                     RenderTile(tx, ty, scene, integrator, photonMap,
                                pixelStates, directFb, indirectFb, sampler);
@@ -203,7 +205,7 @@ public sealed class PhotonMappingRenderer
                 // Indirect lighting — current pass only
                 var indirect = integrator.TraceIndirect(
                     ray, scene.Scene, photonMap,
-                    pixelStates, pixelIndex);
+                    pixelStates, pixelIndex, sampler);
                 indirectFb.AddSample(x, y, indirect);
             }
     }
@@ -249,13 +251,14 @@ public sealed class PhotonMappingRenderer
             _lastScene.Integrator.Alpha);
     }
 
-    private static int HashSeed(int tx, int ty)
+    private static int HashSeed(int tx, int ty, int pass = 0)
     {
         unchecked
         {
             var hash = (int)2166136261;
             hash = (hash ^ tx) * 16777619;
             hash = (hash ^ ty) * 16777619;
+            hash = (hash ^ pass) * 16777619;
             return hash;
         }
     }

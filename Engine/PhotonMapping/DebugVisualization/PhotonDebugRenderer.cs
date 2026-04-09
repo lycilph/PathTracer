@@ -1,4 +1,5 @@
 ﻿using Core.Algebra;
+using Core.Sampling;
 using Engine.Integrators;
 using Engine.PhotonMapping.Debug;
 using Engine.Rendering;
@@ -215,8 +216,8 @@ public sealed class PhotonDebugRenderer
                 var idx = y * width + x;
                 var ray = context.Camera.GenerateRay(x, y);
 
-                var hit = integrator.FindVisibleDiffusePoint(
-                    ray, context.Scene);
+                var pixelSampler = new Sampler(y * width + x);
+                var hit = integrator.FindVisibleDiffusePoint(ray, context.Scene, pixelSampler);
 
                 if (hit is null) continue;
 
