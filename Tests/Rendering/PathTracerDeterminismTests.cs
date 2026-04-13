@@ -6,19 +6,22 @@ using Core.Scene;
 
 namespace Tests.Rendering;
 
-
 public class PathTracerDeterminismTests
 {
     [Fact]
     public void Render_IsDeterministic_ForFixedSeed()
     {
-        int width = 32;
-        int height = 32;
-        int spp = 4;
+        const int width = 8;
+        const int height = 8;
+        const int spp = 4;
+        const int maxDepth = 5;
+        const ulong seed = 123;
+
+        var gray = new Lambertian(new Vec3(0.8f, 0.8f, 0.8f));
 
         var world = new HittableList();
-        world.Add(new Sphere(new Vec3(0, 0, -1), 0.5f));
-        world.Add(new Sphere(new Vec3(0, -100.5f, -1), 100f));
+        world.Add(new Sphere(new Vec3(0, 0, -1), 0.5f, gray));
+        world.Add(new Sphere(new Vec3(0, -100.5f, -1), 100f, gray));
 
         var camera = new PinholeCamera(
             vfovDegrees: 60f,
@@ -27,16 +30,11 @@ public class PathTracerDeterminismTests
             lookAt: new Vec3(0, 0, -1),
             vUp: Vec3.UnitY);
 
-        var material = new Lambertian(new Vec3(0.8f));
-
-        var img1 = PathTracer.Render(width, height, spp, camera, world, material, baseSeed: 123);
-        var img2 = PathTracer.Render(width, height, spp, camera, world, material, baseSeed: 123);
+        var img1 = PathTracer.Render(width, height, spp, maxDepth, camera, world, baseSeed: seed);
+        var img2 = PathTracer.Render(width, height, spp, maxDepth, camera, world, baseSeed: seed);
 
         Assert.Equal(img1.Length, img2.Length);
-
         for (int i = 0; i < img1.Length; i++)
-        {
             Assert.Equal(img1[i], img2[i]);
-        }
     }
 }

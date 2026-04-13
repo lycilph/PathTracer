@@ -11,12 +11,15 @@ public class PathTracerSanityTests
     [Fact]
     public void Render_ProducesFiniteNonNegativeValues()
     {
-        int width = 16;
-        int height = 16;
-        int spp = 8;
+        const int width = 16;
+        const int height = 16;
+        const int spp = 8;
+        const int maxDepth = 5;
+
+        var gray = new Lambertian(new Vec3(0.8f, 0.8f, 0.8f));
 
         var world = new HittableList();
-        world.Add(new Sphere(new Vec3(0, 0, -1), 0.5f));
+        world.Add(new Sphere(new Vec3(0f, 0f, -1f), 0.5f, gray));
 
         var camera = new PinholeCamera(
             vfovDegrees: 60f,
@@ -25,23 +28,15 @@ public class PathTracerSanityTests
             lookAt: new Vec3(0, 0, -1),
             vUp: Vec3.UnitY);
 
-        var material = new Lambertian(new Vec3(0.8f));
-
-        var img = PathTracer.Render(width, height, spp, camera, world, material);
+        var img = PathTracer.Render(width, height, spp, maxDepth, camera, world, baseSeed: 1);
 
         foreach (var c in img)
         {
-            Assert.False(float.IsNaN(c.X));
-            Assert.False(float.IsNaN(c.Y));
-            Assert.False(float.IsNaN(c.Z));
+            Assert.False(float.IsNaN(c.X) || float.IsNaN(c.Y) || float.IsNaN(c.Z));
+            Assert.False(float.IsInfinity(c.X) || float.IsInfinity(c.Y) || float.IsInfinity(c.Z));
 
-            Assert.False(float.IsInfinity(c.X));
-            Assert.False(float.IsInfinity(c.Y));
-            Assert.False(float.IsInfinity(c.Z));
-
-            Assert.True(c.X >= 0f);
-            Assert.True(c.Y >= 0f);
-            Assert.True(c.Z >= 0f);
+            // Radiance should not be negative in our current model
+            Assert.True(c.X >= 0f && c.Y >= 0f && c.Z >= 0f);
         }
     }
 }

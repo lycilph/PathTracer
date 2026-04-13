@@ -2,7 +2,6 @@
 
 namespace Core.Scene;
 
-
 public sealed class HittableList : IHittable
 {
     private readonly List<IHittable> _objects = new();
@@ -18,11 +17,11 @@ public sealed class HittableList : IHittable
 
         foreach (var obj in _objects)
         {
-            if (obj.Hit(ray, tMin, closest, out var tempHit))
+            if (obj.Hit(ray, tMin, closest, out var temp))
             {
                 hitAnything = true;
-                closest = tempHit.T;
-                hit = tempHit;
+                closest = temp.T;
+                hit = temp;
             }
         }
 
