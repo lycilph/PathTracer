@@ -12,6 +12,9 @@ public readonly struct Vec3 : IEquatable<Vec3>
     public readonly float X;
     public readonly float Y;
     public readonly float Z;
+    
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public Vec3(float c) => (X, Y, Z) = (c, c, c);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Vec3(float x, float y, float z) => (X, Y, Z) = (x, y, z);

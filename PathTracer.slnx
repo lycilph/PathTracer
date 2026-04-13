@@ -1,10 +1,6 @@
 <Solution>
-  <Folder Name="/Docs/">
-    <File Path="conventions.md" />
-    <File Path="milestone-0-foundation.md" />
-    <File Path="milestone-1-rays-camera-spheres.md" />
-  </Folder>
   <Project Path="CLI/CLI.csproj" Id="d986dde7-e966-4aae-a8ea-bd99f44c95cc" />
   <Project Path="Core/Core.csproj" />
+  <Project Path="Docs/Docs.shproj" Id="bdf9e6c6-e985-4298-ade3-0e8780d6b392" />
   <Project Path="Tests/Tests.csproj" Id="fd4caa0b-54d1-4a76-a612-1a669d9ce482" />
 </Solution>

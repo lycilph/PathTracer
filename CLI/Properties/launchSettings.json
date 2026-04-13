@@ -1,8 +1,7 @@
 {
   "profiles": {
     "CLI": {
-      "commandName": "Project",
-      "commandLineArgs": "1280 720 out.ppm"
+      "commandName": "Project"
     }
   }
 }
