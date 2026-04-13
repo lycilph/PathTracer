@@ -10,6 +10,7 @@
   </PropertyGroup>
   <ItemGroup>
     <None Include="$(MSBuildThisFileDirectory)conventions.md" />
+    <None Include="$(MSBuildThisFileDirectory)golden-images.md" />
     <None Include="$(MSBuildThisFileDirectory)milestone-0-foundation.md" />
     <None Include="$(MSBuildThisFileDirectory)milestone-1-rays-camera-spheres.md" />
     <None Include="$(MSBuildThisFileDirectory)milestone-2-diffuse-path-tracing.md" />
