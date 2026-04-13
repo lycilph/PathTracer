@@ -64,7 +64,7 @@ public sealed class RadianceEstimator
 
             // Cone filter kernel: K = 1 - dist / (k * r)
             var dist = Math.Sqrt(distSq);
-            var kernel = 1.0 - dist / (KNearest * state.Radius);
+            var kernel = 1 - dist / state.Radius;
 
             flux = flux + brdf * photon.Power * kernel;
         }

@@ -45,7 +45,7 @@ public sealed class PhotonMappingRenderer
         var width = scene.Settings.ImageWidth;
         var height = scene.Settings.ImageHeight;
 
-        // Two separate frame buffers
+        // Both buffers accumulate across passes — mean is taken for display
         var directFb = new FrameBuffer(width, height);
         var indirectFb = new FrameBuffer(width, height);
 
@@ -87,10 +87,8 @@ public sealed class PhotonMappingRenderer
             var photonMap = new PhotonMap(photons);
             _lastPhotonMap = photonMap;
 
-            // ── Clear indirect buffer — replaced each pass ────────────────
-            indirectFb.Clear();
-
             // ── Ray trace pass — direct + indirect separately ─────────────
+            // Both buffers now accumulate across passes
             RayTracePass(scene, integrator, photonMap,
                          pixelStates, directFb, indirectFb,
                          pass,
