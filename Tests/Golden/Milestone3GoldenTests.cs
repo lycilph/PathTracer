@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 using Core.Camera;
+using Core.Lights;
 using Core.Materials;
 using Core.Math;
 using Core.Rendering;
@@ -37,6 +38,8 @@ public class Milestone3GoldenTests
 
         world.Add(new Box(new Vec3(130, 0, 65), new Vec3(295, 165, 230), white));
         world.Add(new Box(new Vec3(265, 0, 295), new Vec3(430, 330, 460), white));
+        
+        var scene = new Core.Scene.Scene(world, new List<ILight>());
 
         var camera = new PinholeCamera(
             vfovDegrees: 40f,
@@ -45,7 +48,7 @@ public class Milestone3GoldenTests
             lookAt: new Vec3(278f, 278f, 0f),
             vUp: Vec3.UnitY);
 
-        var actual = PathTracer.Render(width, height, spp, maxDepth, camera, world, baseSeed: seed);
+        var actual = PathTracer.Render(width, height, spp, maxDepth, camera, scene, baseSeed: seed);
 
         const float rmseThreshold = 1e-7f;
         GoldenImageAssert.Matches(

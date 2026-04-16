@@ -15,5 +15,6 @@
     <None Include="$(MSBuildThisFileDirectory)milestone-1-rays-camera-spheres.md" />
     <None Include="$(MSBuildThisFileDirectory)milestone-2-diffuse-path-tracing.md" />
     <None Include="$(MSBuildThisFileDirectory)milestone-3-emission-cornell.md" />
+    <None Include="$(MSBuildThisFileDirectory)milestone-4-nee-mis.md" />
   </ItemGroup>
 </Project>

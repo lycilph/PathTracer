@@ -1,4 +1,5 @@
 ﻿using Core.Camera;
+using Core.Lights;
 using Core.Materials;
 using Core.Math;
 using Core.Rendering;
@@ -18,20 +19,16 @@ public class PathTracerDeterminismTests
         const ulong seed = 123;
 
         var gray = new Lambertian(new Vec3(0.8f, 0.8f, 0.8f));
-
         var world = new HittableList();
         world.Add(new Sphere(new Vec3(0, 0, -1), 0.5f, gray));
         world.Add(new Sphere(new Vec3(0, -100.5f, -1), 100f, gray));
 
-        var camera = new PinholeCamera(
-            vfovDegrees: 60f,
-            aspectRatio: 1f,
-            lookFrom: new Vec3(0, 0, 1),
-            lookAt: new Vec3(0, 0, -1),
-            vUp: Vec3.UnitY);
+        var scene = new Core.Scene.Scene(world, new List<ILight>());
 
-        var img1 = PathTracer.Render(width, height, spp, maxDepth, camera, world, baseSeed: seed);
-        var img2 = PathTracer.Render(width, height, spp, maxDepth, camera, world, baseSeed: seed);
+        var camera = new PinholeCamera(60f, 1f, new Vec3(0, 0, 1), new Vec3(0, 0, -1), Vec3.UnitY);
+
+        var img1 = PathTracer.Render(width, height, spp, maxDepth, camera, scene, baseSeed: seed);
+        var img2 = PathTracer.Render(width, height, spp, maxDepth, camera, scene, baseSeed: seed);
 
         Assert.Equal(img1.Length, img2.Length);
         for (int i = 0; i < img1.Length; i++)

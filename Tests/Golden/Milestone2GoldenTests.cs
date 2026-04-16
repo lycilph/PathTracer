@@ -1,4 +1,5 @@
 ﻿using Core.Camera;
+using Core.Lights;
 using Core.Materials;
 using Core.Math;
 using Core.Rendering;
@@ -17,15 +18,14 @@ public class Milestone2GoldenTests
         const int maxDepth = 5;
         const ulong seed = 123;
 
-        // Materials
         var gray = new Lambertian(new Vec3(0.8f, 0.8f, 0.8f));
 
-        // Scene: sphere + ground sphere (now requires materials)
         var world = new HittableList();
         world.Add(new Sphere(new Vec3(0f, 0f, -1f), 0.5f, gray));
         world.Add(new Sphere(new Vec3(0f, -100.5f, -1f), 100f, gray));
 
-        // Camera
+        var scene = new Core.Scene.Scene(world, new List<ILight>());
+
         var camera = new PinholeCamera(
             vfovDegrees: 60f,
             aspectRatio: 1f,
@@ -33,15 +33,9 @@ public class Milestone2GoldenTests
             lookAt: new Vec3(0f, 0f, -1f),
             vUp: Vec3.UnitY);
 
-        // New signature: includes maxDepth, no default material
-        var actual = PathTracer.Render(width, height, spp, maxDepth, camera, world, baseSeed: seed);
+        var actual = PathTracer.Render(width, height, spp, maxDepth, camera, scene, baseSeed: seed);
 
-        // NOTE:
-        // Since Milestone 3 changed the integrator (emission support, black background),
-        // your old Milestone 2 golden will NOT match.
-        // Run once with UPDATE_GOLDENS=1 to regenerate intentionally.
         const float rmseThreshold = 1e-7f;
-
         GoldenImageAssert.Matches(
             goldenPath: Path.Combine("Golden", "milestone2_tiny.ptgi"),
             width: width,

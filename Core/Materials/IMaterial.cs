@@ -5,25 +5,35 @@ using Core.Scene;
 namespace Core.Materials;
 
 /// <summary>
-/// Material interface for path tracing.
-/// 
-/// Milestone 3:
-/// - Supports emitted radiance (area lights / emissive surfaces)
-/// - Supports diffuse scattering (Lambertian)
-/// 
-/// Later milestones will extend this with specular, transmission, microfacet, PDFs and MIS.
+/// Material interface supporting emission and BSDF evaluation/sampling.
+/// Designed for Next Event Estimation + MIS.
 /// </summary>
 public interface IMaterial
 {
     /// <summary>
-    /// Emitted radiance at the hit point.
+    /// Emitted radiance at the hit point along the outgoing direction.
     /// For non-emissive materials, return Vec3.Zero.
     /// </summary>
     Vec3 Emitted(in Ray rayIn, in HitRecord hit);
 
     /// <summary>
-    /// Samples a scattered ray.
-    /// Returns true if scattering occurred; false means the path terminates at this surface.
+    /// BSDF evaluation f(wo, wi) (units: 1/sr).
     /// </summary>
-    bool Scatter(in Ray rayIn, in HitRecord hit, Sampler sampler, out Ray scattered, out Vec3 attenuation);
+    Vec3 Evaluate(in Vec3 wo, in Vec3 wi, in HitRecord hit);
+
+    /// <summary>
+    /// BSDF PDF p(wi) over solid angle for the sampling strategy used by Sample.
+    /// </summary>
+    float Pdf(in Vec3 wo, in Vec3 wi, in HitRecord hit);
+
+    /// <summary>
+    /// Samples an incoming direction wi given outgoing wo.
+    /// Returns false if the material does not scatter.
+    /// </summary>
+    bool Sample(in Vec3 wo, in HitRecord hit, Sampler sampler, out Vec3 wi, out float pdf, out Vec3 f);
+
+    /// <summary>
+    /// True for delta distributions (perfect specular) so NEE/MIS can skip certain terms.
+    /// </summary>
+    bool IsDelta { get; }
 }
