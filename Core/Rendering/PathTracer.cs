@@ -9,11 +9,15 @@ namespace Core.Rendering;
 
 /// <summary>
 /// Milestone 4 integrator: Next Event Estimation + MIS.
-/// Supports emissive area lights via Scene.Lights plus emissive materials on geometry.
-/// Background is black.
+/// 
+/// Adds Russian roulette termination to reduce work on low-throughput paths (unbiased).
+/// Adds optional row-level progress callback for CLI usage.
 /// </summary>
 public static class PathTracer
 {
+    /// <summary>
+    /// Renders an image.
+    /// </summary>
     public static Vec3[] Render(
         int width,
         int height,
@@ -21,11 +25,13 @@ public static class PathTracer
         int maxDepth,
         PinholeCamera camera,
         Scene.Scene scene,
-        ulong baseSeed = 1)
+        ulong baseSeed = 1,
+        Action<int, int>? reportRowsCompleted = null)
     {
         var film = new Vec3[width * height];
 
         for (int y = 0; y < height; y++)
+        {
             for (int x = 0; x < width; x++)
             {
                 Vec3 sum = Vec3.Zero;
@@ -40,16 +46,19 @@ public static class PathTracer
                     float v = (y + sampler.Next1D()) / height;
                     var ray = camera.GetRay(u, 1f - v);
 
-                    sum += Li(ray, scene, sampler, maxDepth);
+                    sum += Li(ray, scene, sampler, maxDepth, bounce: 0);
                 }
 
                 film[y * width + x] = sum / samplesPerPixel;
             }
 
+            reportRowsCompleted?.Invoke(y + 1, height);
+        }
+
         return film;
     }
 
-    private static Vec3 Li(in Ray ray, Scene.Scene scene, Sampler sampler, int depth)
+    private static Vec3 Li(in Ray ray, Scene.Scene scene, Sampler sampler, int depth, int bounce)
     {
         if (depth <= 0)
             return Vec3.Zero;
@@ -65,27 +74,41 @@ public static class PathTracer
 
         // Direct lighting via Next Event Estimation (skip for delta materials)
         if (!mat.IsDelta && scene.Lights.Count > 0)
-        {
             L += EstimateDirect(hit, wo, scene, sampler, ray.Time);
-        }
+
+        // Stop if no more bounces allowed
+        if (depth == 1)
+            return L;
 
         // Sample BSDF to continue path
-        if (depth == 1) return L;
-
         if (!mat.Sample(wo, hit, sampler, out var wi, out var bsdfPdf, out var f))
             return L;
 
         float cos = Vec3.Dot(wi, hit.Normal);
-        if (bsdfPdf <= 0f || cos <= 0f) return L;
+        if (bsdfPdf <= 0f || cos <= 0f)
+            return L;
 
         Vec3 throughput = f * (cos / bsdfPdf);
+
+        // Russian roulette termination (unbiased)
+        // We start RR after a few bounces to avoid killing short paths prematurely.
+        const int rrStartBounce = 3;
+        if (bounce >= rrStartBounce)
+        {
+            float p = RussianRoulette.ContinuationProbability(throughput);
+            if (sampler.Next1D() > p)
+                return L;
+
+            throughput = throughput / p;
+        }
+
         var scattered = new Ray(hit.Point, wi, ray.Time);
 
         // If the BSDF-sampled ray hits a light, apply MIS weight against light sampling PDF.
-        if (scene.World.Hit(scattered, 0.001f, float.PositiveInfinity, out var hit2))
+        if (!mat.IsDelta && scene.World.Hit(scattered, 0.001f, float.PositiveInfinity, out var hit2))
         {
             Vec3 Le = hit2.Material.Emitted(scattered, hit2);
-            if (!Le.NearZero() && !mat.IsDelta)
+            if (!Le.NearZero())
             {
                 float lightPdf = SceneLightPdf(scene, hit.Point, wi);
                 float w = Mis.PowerHeuristic(bsdfPdf, lightPdf);
@@ -94,8 +117,7 @@ public static class PathTracer
             }
         }
 
-        // Otherwise continue recursively
-        L += Vec3.Hadamard(throughput, Li(scattered, scene, sampler, depth - 1));
+        L += Vec3.Hadamard(throughput, Li(scattered, scene, sampler, depth - 1, bounce + 1));
         return L;
     }
 
@@ -126,8 +148,6 @@ public static class PathTracer
         float lightPdf = ls.Pdf / nLights;
 
         float w = Mis.PowerHeuristic(lightPdf, bsdfPdf);
-
-        // Contribution: Le * f * cos / pdf  (component-wise in RGB)
         return Vec3.Hadamard(f, ls.Radiance) * (cosSurface * w / lightPdf);
     }
 

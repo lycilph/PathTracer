@@ -1,4 +1,5 @@
-﻿using Core.Camera;
+﻿using System.Diagnostics;
+using Core.Camera;
 using Core.Lights;
 using Core.Materials;
 using Core.Math;
@@ -11,10 +12,13 @@ internal class Program
 {
     static void Main(string[] args)
     {
-        int width = 400;
-        int height = 400;
-        int spp = 50;
-        string outPath = "milestone4_cornell.ppm";
+        // Milestone 4+ (Russian roulette + CLI progress)
+        // Cornell Box with NEE + MIS.
+
+        int width = 800;
+        int height = 800;
+        int spp = 250;
+        string outPath = "cornell.ppm";
 
         if (args.Length >= 3)
         {
@@ -46,10 +50,8 @@ internal class Program
 
         var lights = new List<ILight>
         {
-            // Light emitting downward into the box: normal = -Y
             new RectAreaLightXZ(213, 343, 227, 332, 554, normal: -Vec3.UnitY, radiance: new Vec3(15f,15f,15f))
         };
-
         var scene = new Scene(world, lights);
 
         var camera = new PinholeCamera(
@@ -59,10 +61,25 @@ internal class Program
             lookAt: new Vec3(278f, 278f, 0f),
             vUp: Vec3.UnitY);
 
-        Console.WriteLine($"Rendering Cornell (NEE+MIS) {width}x{height}, spp={spp} -> {outPath}");
-        var pixels = PathTracer.Render(width, height, spp, maxDepth: 10, camera, scene, baseSeed: 123);
+        Console.WriteLine($"Rendering Cornell (NEE+MIS+RR) {width}x{height}, spp={spp} -> {outPath}");
+        var sw = Stopwatch.StartNew();
 
+        int lastPrinted = -1;
+        void Report(int done, int total)
+        {
+            int percent = (int)(100.0 * done / total);
+            if (percent == lastPrinted) return;
+            lastPrinted = percent;
+
+            // Keep it simple: percent + elapsed. (We avoid ETA guesses.)
+            Console.WriteLine($"Progress: {percent,3}% Rows: {done}/{total} Elapsed: {sw.Elapsed}"); //:mm\:ss
+        }
+
+        var pixels = PathTracer.Render(width, height, spp, maxDepth: 10, camera, scene, baseSeed: 123, reportRowsCompleted: Report);
+
+        Console.WriteLine();
         PpmWriter.WriteP6(outPath, width, height, pixels);
+        Console.WriteLine($"Done. Total elapsed: {sw.Elapsed}"); //:hh\:mm\:ss
         Console.Write("Done... Press any key to continue");
         Console.ReadKey();
     }
