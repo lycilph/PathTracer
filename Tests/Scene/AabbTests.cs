@@ -1,7 +1,7 @@
 using Core.Math;
 using Core.Scene;
 
-namespace Tracer.Tests.Scene;
+namespace Tests.Scene;
 
 public class AabbTests
 {

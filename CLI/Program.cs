@@ -47,13 +47,13 @@ internal class Program
 
         // Replace one inner box with a triangle mesh cube (unit cube scaled and translated)
         var cube = TriangleMesh.CreateUnitCube(white);
-        // Put cube on the floor: scale to roughly 165 size and translate to Cornell coords.
-        // We use a simple trick: load a cube OBJ would normally use transforms; for now we just rebuild triangles with scaled positions.
-        // For learning purposes, we instead load from an embedded OBJ would be overkill.
-        // We'll demonstrate mesh by loading a small OBJ if provided later.
+        IHittable cubePlaced = new Translate(
+            new Scale(cube, 165f),
+            new Vec3(190f, 82.5f, 150f));
+        worldList.Add(cubePlaced);
 
         // Keep the original boxes for now (still helpful for scenes)
-        worldList.Add(new Box(new Vec3(130, 0, 65), new Vec3(295, 165, 230), white));
+        //worldList.Add(new Box(new Vec3(130, 0, 65), new Vec3(295, 165, 230), white));
         worldList.Add(new Box(new Vec3(265, 0, 295), new Vec3(430, 330, 460), white));
 
         // Build BVH over the whole world for speed

@@ -9,6 +9,7 @@
     <Import_RootNamespace>Docs</Import_RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)cli-mesh-placement-snippet.md" />
     <None Include="$(MSBuildThisFileDirectory)conventions.md" />
     <None Include="$(MSBuildThisFileDirectory)golden-images.md" />
     <None Include="$(MSBuildThisFileDirectory)milestone-0-foundation.md" />
@@ -18,5 +19,6 @@
     <None Include="$(MSBuildThisFileDirectory)milestone-4-nee-mis.md" />
     <None Include="$(MSBuildThisFileDirectory)milestone-4-russian-roulette.md" />
     <None Include="$(MSBuildThisFileDirectory)milestone-5-meshes-bvh.md" />
+    <None Include="$(MSBuildThisFileDirectory)mini-transforms.md" />
   </ItemGroup>
 </Project>

@@ -3,7 +3,7 @@ using Core.Math;
 using Core.Random;
 using Core.Scene;
 
-namespace Tracer.Tests.Scene;
+namespace Tests.Scene;
 
 public class BvhConsistencyTests
 {
