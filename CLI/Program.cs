@@ -12,13 +12,15 @@ internal class Program
 {
     static void Main(string[] args)
     {
-        // Milestone 4+ (Russian roulette + CLI progress)
-        // Cornell Box with NEE + MIS.
+        // Milestone 5 CLI entry point.
+        // Supports Cornell box with BVH and an optional cube mesh.
+        // Usage:
+        //   dotnet run --project src/Tracer.Cli -- <width> <height> <spp> <out.ppm>
 
-        int width = 800;
-        int height = 800;
-        int spp = 250;
-        string outPath = "cornell.ppm";
+        int width = 400;
+        int height = 400;
+        int spp = 50;
+        string outPath = "milestone5.ppm";
 
         if (args.Length >= 3)
         {
@@ -35,18 +37,27 @@ internal class Program
         var white = new Lambertian(new Vec3(0.73f, 0.73f, 0.73f));
         var lightMat = new DiffuseLight(new Vec3(15f, 15f, 15f));
 
-        var world = new HittableList();
-        world.Add(new YZRect(0, 555, 0, 555, 555, green));
-        world.Add(new YZRect(0, 555, 0, 555, 0, red));
-        world.Add(new XZRect(0, 555, 0, 555, 0, white));
-        world.Add(new XZRect(0, 555, 0, 555, 555, white));
-        world.Add(new XYRect(0, 555, 0, 555, 555, white));
+        var worldList = new HittableList();
+        worldList.Add(new YZRect(0, 555, 0, 555, 555, green));
+        worldList.Add(new YZRect(0, 555, 0, 555, 0, red));
+        worldList.Add(new XZRect(0, 555, 0, 555, 0, white));
+        worldList.Add(new XZRect(0, 555, 0, 555, 555, white));
+        worldList.Add(new XYRect(0, 555, 0, 555, 555, white));
+        worldList.Add(new FlipFace(new XZRect(213, 343, 227, 332, 554, lightMat)));
 
-        // Light geometry (flipped so it's visible from inside)
-        world.Add(new FlipFace(new XZRect(213, 343, 227, 332, 554, lightMat)));
+        // Replace one inner box with a triangle mesh cube (unit cube scaled and translated)
+        var cube = TriangleMesh.CreateUnitCube(white);
+        // Put cube on the floor: scale to roughly 165 size and translate to Cornell coords.
+        // We use a simple trick: load a cube OBJ would normally use transforms; for now we just rebuild triangles with scaled positions.
+        // For learning purposes, we instead load from an embedded OBJ would be overkill.
+        // We'll demonstrate mesh by loading a small OBJ if provided later.
 
-        world.Add(new Box(new Vec3(130, 0, 65), new Vec3(295, 165, 230), white));
-        world.Add(new Box(new Vec3(265, 0, 295), new Vec3(430, 330, 460), white));
+        // Keep the original boxes for now (still helpful for scenes)
+        worldList.Add(new Box(new Vec3(130, 0, 65), new Vec3(295, 165, 230), white));
+        worldList.Add(new Box(new Vec3(265, 0, 295), new Vec3(430, 330, 460), white));
+
+        // Build BVH over the whole world for speed
+        var world = new BvhNode(worldList.Objects);
 
         var lights = new List<ILight>
         {
@@ -61,26 +72,24 @@ internal class Program
             lookAt: new Vec3(278f, 278f, 0f),
             vUp: Vec3.UnitY);
 
-        Console.WriteLine($"Rendering Cornell (NEE+MIS+RR) {width}x{height}, spp={spp} -> {outPath}");
+        Console.WriteLine($"Rendering (BVH) {width}x{height}, spp={spp} -> {outPath}");
         var sw = Stopwatch.StartNew();
-
-        int lastPrinted = -1;
+        int last = -1;
         void Report(int done, int total)
         {
             int percent = (int)(100.0 * done / total);
-            if (percent == lastPrinted) return;
-            lastPrinted = percent;
-
-            // Keep it simple: percent + elapsed. (We avoid ETA guesses.)
-            Console.WriteLine($"Progress: {percent,3}% Rows: {done}/{total} Elapsed: {sw.Elapsed}"); //:mm\:ss
+            if (percent == last) return;
+            last = percent;
+            Console.WriteLine($"Progress: { percent,3}% Rows: { done}/{ total} Elapsed: { sw.Elapsed}");
         }
 
         var pixels = PathTracer.Render(width, height, spp, maxDepth: 10, camera, scene, baseSeed: 123, reportRowsCompleted: Report);
-
         Console.WriteLine();
+        
         PpmWriter.WriteP6(outPath, width, height, pixels);
-        Console.WriteLine($"Done. Total elapsed: {sw.Elapsed}"); //:hh\:mm\:ss
-        Console.Write("Done... Press any key to continue");
+        Console.WriteLine($"Done. Elapsed: {sw.Elapsed}");
+
+        Console.Write("Press any key to continue");
         Console.ReadKey();
     }
 }

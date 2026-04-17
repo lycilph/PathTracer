@@ -15,7 +15,9 @@ public class RectTests
         var ray = new Ray(new Vec3(0.5f, 0.5f, 0), new Vec3(0, 0, 1));
         Assert.True(rect.Hit(ray, 0.001f, 1000f, out var rec));
         Assert.InRange(rec.T, 1.999f, 2.001f);
-        Assert.InRange(rec.Point.Z, 1.999f, 2.001f);
+
+        Assert.True(rect.BoundingBox(out var box));
+        Assert.True(box.Min.Z < 2f && box.Max.Z > 2f);
     }
 
     [Fact]

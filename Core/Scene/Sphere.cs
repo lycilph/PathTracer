@@ -40,4 +40,11 @@ public sealed class Sphere : IHittable
         hit = new HitRecord(p, outward, root, ray, Material);
         return true;
     }
+
+    public bool BoundingBox(out Aabb box)
+    {
+        var r = new Vec3(Radius, Radius, Radius);
+        box = new Aabb(Center - r, Center + r);
+        return true;
+    }
 }

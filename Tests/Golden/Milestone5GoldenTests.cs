@@ -1,5 +1,3 @@
-
-
 using Core.Camera;
 using Core.Lights;
 using Core.Materials;
@@ -9,10 +7,10 @@ using Core.Scene;
 
 namespace Tests.Golden;
 
-public class Milestone4GoldenTests
+public class Milestone5GoldenTests
 {
     [Fact]
-    public void Cornell_NeeMis_Tiny_MatchesGolden()
+    public void Cornell_WithBvh_Tiny_MatchesGolden()
     {
         const int width = 48;
         const int height = 48;
@@ -25,15 +23,17 @@ public class Milestone4GoldenTests
         var white = new Lambertian(new Vec3(0.73f, 0.73f, 0.73f));
         var lightMat = new DiffuseLight(new Vec3(15f, 15f, 15f));
 
-        var world = new HittableList();
-        world.Add(new YZRect(0, 555, 0, 555, 555, green));
-        world.Add(new YZRect(0, 555, 0, 555, 0, red));
-        world.Add(new XZRect(0, 555, 0, 555, 0, white));
-        world.Add(new XZRect(0, 555, 0, 555, 555, white));
-        world.Add(new XYRect(0, 555, 0, 555, 555, white));
-        world.Add(new FlipFace(new XZRect(213, 343, 227, 332, 554, lightMat)));
-        world.Add(new Box(new Vec3(130, 0, 65), new Vec3(295, 165, 230), white));
-        world.Add(new Box(new Vec3(265, 0, 295), new Vec3(430, 330, 460), white));
+        var list = new HittableList();
+        list.Add(new YZRect(0, 555, 0, 555, 555, green));
+        list.Add(new YZRect(0, 555, 0, 555, 0, red));
+        list.Add(new XZRect(0, 555, 0, 555, 0, white));
+        list.Add(new XZRect(0, 555, 0, 555, 555, white));
+        list.Add(new XYRect(0, 555, 0, 555, 555, white));
+        list.Add(new FlipFace(new XZRect(213, 343, 227, 332, 554, lightMat)));
+        list.Add(new Box(new Vec3(130, 0, 65), new Vec3(295, 165, 230), white));
+        list.Add(new Box(new Vec3(265, 0, 295), new Vec3(430, 330, 460), white));
+
+        var world = new BvhNode(list.Objects);
 
         var lights = new List<ILight>
         {
@@ -52,7 +52,7 @@ public class Milestone4GoldenTests
 
         const float rmseThreshold = 1e-7f;
         GoldenImageAssert.Matches(
-            goldenPath: Path.Combine("Golden", "milestone4_cornell_tiny.ptgi"),
+            goldenPath: Path.Combine("Golden", "milestone5_cornell_bvh_tiny.ptgi"),
             width: width,
             height: height,
             actual: actual,

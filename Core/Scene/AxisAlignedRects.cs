@@ -3,10 +3,12 @@ using Core.Math;
 
 namespace Core.Scene;
 
+// NOTE: For bounding boxes of rectangles we give them a small thickness (epsilon) in the normal axis.
 public sealed class XYRect : IHittable
 {
     private readonly float _x0, _x1, _y0, _y1, _k;
     private readonly IMaterial _mat;
+    private const float Eps = 1e-4f;
 
     public XYRect(float x0, float x1, float y0, float y1, float k, IMaterial mat)
     { _x0 = x0; _x1 = x1; _y0 = y0; _y1 = y1; _k = k; _mat = mat; }
@@ -24,12 +26,19 @@ public sealed class XYRect : IHittable
         hit = new HitRecord(p, Vec3.UnitZ, t, ray, _mat);
         return true;
     }
+
+    public bool BoundingBox(out Aabb box)
+    {
+        box = new Aabb(new Vec3(_x0, _y0, _k - Eps), new Vec3(_x1, _y1, _k + Eps));
+        return true;
+    }
 }
 
 public sealed class XZRect : IHittable
 {
     private readonly float _x0, _x1, _z0, _z1, _k;
     private readonly IMaterial _mat;
+    private const float Eps = 1e-4f;
 
     public XZRect(float x0, float x1, float z0, float z1, float k, IMaterial mat)
     { _x0 = x0; _x1 = x1; _z0 = z0; _z1 = z1; _k = k; _mat = mat; }
@@ -47,12 +56,19 @@ public sealed class XZRect : IHittable
         hit = new HitRecord(p, Vec3.UnitY, t, ray, _mat);
         return true;
     }
+
+    public bool BoundingBox(out Aabb box)
+    {
+        box = new Aabb(new Vec3(_x0, _k - Eps, _z0), new Vec3(_x1, _k + Eps, _z1));
+        return true;
+    }
 }
 
 public sealed class YZRect : IHittable
 {
     private readonly float _y0, _y1, _z0, _z1, _k;
     private readonly IMaterial _mat;
+    private const float Eps = 1e-4f;
 
     public YZRect(float y0, float y1, float z0, float z1, float k, IMaterial mat)
     { _y0 = y0; _y1 = y1; _z0 = z0; _z1 = z1; _k = k; _mat = mat; }
@@ -68,6 +84,12 @@ public sealed class YZRect : IHittable
 
         var p = ray.At(t);
         hit = new HitRecord(p, Vec3.UnitX, t, ray, _mat);
+        return true;
+    }
+
+    public bool BoundingBox(out Aabb box)
+    {
+        box = new Aabb(new Vec3(_k - Eps, _y0, _z0), new Vec3(_k + Eps, _y1, _z1));
         return true;
     }
 }

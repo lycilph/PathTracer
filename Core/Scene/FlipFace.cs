@@ -20,4 +20,6 @@ public sealed class FlipFace : IHittable
         hit = hit.Flipped();
         return true;
     }
+
+    public bool BoundingBox(out Aabb box) => _obj.BoundingBox(out box);
 }

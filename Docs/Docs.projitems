@@ -17,5 +17,6 @@
     <None Include="$(MSBuildThisFileDirectory)milestone-3-emission-cornell.md" />
     <None Include="$(MSBuildThisFileDirectory)milestone-4-nee-mis.md" />
     <None Include="$(MSBuildThisFileDirectory)milestone-4-russian-roulette.md" />
+    <None Include="$(MSBuildThisFileDirectory)milestone-5-meshes-bvh.md" />
   </ItemGroup>
 </Project>
