@@ -5,23 +5,44 @@ using Core.Scene;
 namespace Core.Materials;
 
 /// <summary>
-/// Ideal dielectric (glass) with Fresnel reflection + refraction (delta BSDF).
+/// Ideal dielectric (glass) with Fresnel reflection + refraction (delta BSDF),
+/// plus optional absorption/tint via Beer-Lambert law.
 ///
-/// Uses Schlick approximation for Fresnel reflectance.
-/// Handles total internal reflection (TIR).
+/// Tint model:
+///   sigmaA = -ln(tint) * absorptionStrength
+///   T(d)   = exp(-sigmaA * d)
 ///
-/// Similar to Mirror, we return:
-///   pdf = 1
-///   f = attenuation / |cos|
-/// so throughput becomes attenuation (Vec3.One for clear glass).
+/// If tint is Vec3.One or absorptionStrength=0, glass is clear.
 /// </summary>
 public sealed class Dielectric : IMaterial
 {
-    public float Ior { get; } // index of refraction
+    public float Ior { get; }
 
-    public Dielectric(float ior = 1.5f) => Ior = ior;
+    // Absorption coefficient sigma_a (RGB). Units: 1 / sceneDistanceUnit
+    public Vec3 SigmaA { get; }
 
     public bool IsDelta => true;
+
+    /// <summary>
+    /// Clear glass by default (no absorption).
+    /// </summary>
+    public Dielectric(float ior = 1.5f)
+    {
+        Ior = ior;
+        SigmaA = Vec3.Zero;
+    }
+
+    /// <summary>
+    /// Tinted glass.
+    ///
+    /// tint: desired per-channel transmittance for a reference distance of 1 unit (before scaling).
+    /// absorptionStrength: scales absorption to match scene units (Cornell is large, so ~0.01 is a good start).
+    /// </summary>
+    public Dielectric(float ior, in Vec3 tint, float absorptionStrength)
+    {
+        Ior = ior;
+        SigmaA = ComputeSigmaA(tint, absorptionStrength);
+    }
 
     public Vec3 Emitted(in Ray rayIn, in HitRecord hit) => Vec3.Zero;
 
@@ -36,8 +57,8 @@ public sealed class Dielectric : IMaterial
         float etaI = 1f;
         float etaT = Ior;
 
-        // hit.Normal is oriented against incident for front faces (HitRecord).
-        // If we're exiting, swap indices.
+        // HitRecord orients Normal against incident for front faces.
+        // If we are exiting, swap etaI/etaT.
         if (!hit.FrontFace)
         {
             etaI = Ior;
@@ -70,8 +91,39 @@ public sealed class Dielectric : IMaterial
             return false;
         }
 
+        // Delta distribution trick: pdf=1, f = 1/|cos| so throughput becomes 1.
         pdf = 1f;
-        f = Vec3.One / cos; // attenuation = 1 for clear glass (no absorption)
+        f = Vec3.One / cos;
         return true;
+    }
+
+    /// <summary>
+    /// Beer-Lambert transmittance over distance d.
+    /// </summary>
+    public Vec3 Transmittance(float distance)
+    {
+        if (SigmaA.NearZero() || distance <= 0f)
+            return Vec3.One;
+
+        return new Vec3(
+            float.Exp(-SigmaA.X * distance),
+            float.Exp(-SigmaA.Y * distance),
+            float.Exp(-SigmaA.Z * distance));
+    }
+
+    private static Vec3 ComputeSigmaA(in Vec3 tint, float absorptionStrength)
+    {
+        // Clamp tint to avoid log(0) or negative.
+        float ClampTint(float x) => MathUtil.Clamp(x, 1e-6f, 1f);
+
+        float tx = ClampTint(tint.X);
+        float ty = ClampTint(tint.Y);
+        float tz = ClampTint(tint.Z);
+
+        // sigma = -ln(tint) * strength
+        return new Vec3(
+            -float.Log(tx) * absorptionStrength,
+            -float.Log(ty) * absorptionStrength,
+            -float.Log(tz) * absorptionStrength);
     }
 }

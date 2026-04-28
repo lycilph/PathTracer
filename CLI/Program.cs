@@ -12,10 +12,9 @@ internal class Program
 {
     static void Main(string[] args)
     {
-
         int width = 400;
         int height = 400;
-        int spp = 500;
+        int spp = 50;
         string outPath = $"milestone6_cornell_specular_{spp}spp.ppm";
 
         if (args.Length >= 3)
@@ -34,7 +33,10 @@ internal class Program
         var lightMat = new DiffuseLight(new Vec3(15f, 15f, 15f));
 
         var mirror = new Mirror(new Vec3(0.95f, 0.95f, 0.95f));
-        var glass = new Dielectric(ior: 1.5f);
+        var glass = new Dielectric(
+            ior: 1.5f,
+            tint: new Vec3(0.6f, 0.9f, 0.6f),
+            absorptionStrength: 0.01f);
 
         var list = new HittableList();
         list.Add(new YZRect(0, 555, 0, 555, 555, green));
