@@ -8,16 +8,10 @@ using Core.Scene;
 namespace Core.Rendering;
 
 /// <summary>
-/// Milestone 4 integrator: Next Event Estimation + MIS.
-/// 
-/// Adds Russian roulette termination to reduce work on low-throughput paths (unbiased).
-/// Adds optional row-level progress callback for CLI usage.
+/// Milestone 6 integrator: NEE + MIS + Russian roulette + delta materials (mirror & glass).
 /// </summary>
 public static class PathTracer
 {
-    /// <summary>
-    /// Renders an image.
-    /// </summary>
     public static Vec3[] Render(
         int width,
         int height,
@@ -69,29 +63,35 @@ public static class PathTracer
         var mat = hit.Material;
         Vec3 wo = (-ray.Direction).Normalized();
 
-        // Emission at the surface (if any)
         Vec3 L = mat.Emitted(ray, hit);
 
-        // Direct lighting via Next Event Estimation (skip for delta materials)
+        // NEE only for non-delta
         if (!mat.IsDelta && scene.Lights.Count > 0)
             L += EstimateDirect(hit, wo, scene, sampler, ray.Time);
 
-        // Stop if no more bounces allowed
         if (depth == 1)
             return L;
 
-        // Sample BSDF to continue path
         if (!mat.Sample(wo, hit, sampler, out var wi, out var bsdfPdf, out var f))
             return L;
 
         float cos = Vec3.Dot(wi, hit.Normal);
-        if (bsdfPdf <= 0f || cos <= 0f)
-            return L;
+        float absCos = float.Abs(cos);
 
-        Vec3 throughput = f * (cos / bsdfPdf);
+        // Non-delta requires hemisphere consistency (cos>0).
+        // Delta allows transmission/reflection across hemispheres; use absCos.
+        if (!mat.IsDelta)
+        {
+            if (bsdfPdf <= 0f || cos <= 0f) return L;
+        }
+        else
+        {
+            if (bsdfPdf <= 0f || absCos <= 0f) return L;
+        }
 
-        // Russian roulette termination (unbiased)
-        // We start RR after a few bounces to avoid killing short paths prematurely.
+        Vec3 throughput = f * (absCos / bsdfPdf);
+
+        // Russian roulette after a few bounces
         const int rrStartBounce = 3;
         if (bounce >= rrStartBounce)
         {
@@ -104,15 +104,25 @@ public static class PathTracer
 
         var scattered = new Ray(hit.Point, wi, ray.Time);
 
-        // If the BSDF-sampled ray hits a light, apply MIS weight against light sampling PDF.
-        if (!mat.IsDelta && scene.World.Hit(scattered, 0.001f, float.PositiveInfinity, out var hit2))
+        // If the BSDF-sampled ray hits a light:
+        // - non-delta: apply MIS weight vs light sampling
+        // - delta: add emission directly (light sampling cannot generate delta directions)
+        if (scene.World.Hit(scattered, 0.001f, float.PositiveInfinity, out var hit2))
         {
             Vec3 Le = hit2.Material.Emitted(scattered, hit2);
             if (!Le.NearZero())
             {
-                float lightPdf = SceneLightPdf(scene, hit.Point, wi);
-                float w = Mis.PowerHeuristic(bsdfPdf, lightPdf);
-                L += Vec3.Hadamard(throughput, Le) * w;
+                if (!mat.IsDelta)
+                {
+                    float lightPdf = SceneLightPdf(scene, hit.Point, wi);
+                    float w = Mis.PowerHeuristic(bsdfPdf, lightPdf);
+                    L += Vec3.Hadamard(throughput, Le) * w;
+                }
+                else
+                {
+                    L += Vec3.Hadamard(throughput, Le);
+                }
+
                 return L;
             }
         }
@@ -144,10 +154,9 @@ public static class PathTracer
         var f = hit.Material.Evaluate(wo, ls.Wi, hit);
         float bsdfPdf = hit.Material.Pdf(wo, ls.Wi, hit);
 
-        // Include light selection probability
         float lightPdf = ls.Pdf / nLights;
-
         float w = Mis.PowerHeuristic(lightPdf, bsdfPdf);
+
         return Vec3.Hadamard(f, ls.Radiance) * (cosSurface * w / lightPdf);
     }
 

@@ -19,6 +19,7 @@
     <None Include="$(MSBuildThisFileDirectory)milestone-4-nee-mis.md" />
     <None Include="$(MSBuildThisFileDirectory)milestone-4-russian-roulette.md" />
     <None Include="$(MSBuildThisFileDirectory)milestone-5-meshes-bvh.md" />
+    <None Include="$(MSBuildThisFileDirectory)milestone-6-mirror-glass.md" />
     <None Include="$(MSBuildThisFileDirectory)mini-transforms.md" />
   </ItemGroup>
 </Project>
