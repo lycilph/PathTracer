@@ -18,18 +18,29 @@ public static class PathTracer
         PinholeCamera camera,
         Scene.Scene scene,
         ulong baseSeed = 1,
-        Action<int, int>? reportRowsCompleted = null)
+        Action<int, int>? reportRowsCompleted = null,
+        int? maxDegreeOfParallelism = null)
     {
         var film = new Vec3[width * height];
 
-        for (int y = 0; y < height; y++)
+        int rowsCompleted = 0;
+
+        var options = new ParallelOptions
         {
+            MaxDegreeOfParallelism = maxDegreeOfParallelism ?? Environment.ProcessorCount
+        };
+
+        Parallel.For(0, height, options, y =>
+        {
+            int rowOffset = y * width;
+
             for (int x = 0; x < width; x++)
             {
                 Vec3 sum = Vec3.Zero;
 
                 for (int s = 0; s < samplesPerPixel; s++)
                 {
+                    // Deterministic per pixel+sample RNG seed → scheduling independent
                     ulong seed = SeedHash.PixelSampleSeed(x, y, s, baseSeed);
                     var rng = new Pcg32(seed);
                     var sampler = new Sampler(rng);
@@ -38,15 +49,15 @@ public static class PathTracer
                     float v = (y + sampler.Next1D()) / height;
                     var ray = camera.GetRay(u, 1f - v);
 
-                    // Start in vacuum (no absorption)
                     sum += Li(ray, scene, sampler, maxDepth, bounce: 0, mediumSigmaA: Vec3.Zero);
                 }
 
-                film[y * width + x] = sum / samplesPerPixel;
+                film[rowOffset + x] = sum / samplesPerPixel;
             }
 
-            reportRowsCompleted?.Invoke(y + 1, height);
-        }
+            int done = Interlocked.Increment(ref rowsCompleted);
+            reportRowsCompleted?.Invoke(done, height);
+        });
 
         return film;
     }

@@ -5,6 +5,7 @@ using Core.Materials;
 using Core.Math;
 using Core.Rendering;
 using Core.Scene;
+using Core.Scene.Scenes;
 
 namespace CLI;
 
@@ -14,9 +15,10 @@ internal class Program
     {
 
         int width = 400;
-        int height = 225;
-        int spp = 1000;
-        string outPath = $"milestone7_microfacet_{spp}spp.ppm";
+        int height = 400;
+        int spp = 5000;
+        int threads = Environment.ProcessorCount-1;
+        string outPath = $"cornell_box_multithreaded_{spp}spp.ppm";
 
         if (args.Length >= 3)
         {
@@ -26,49 +28,9 @@ internal class Program
         }
         if (args.Length >= 4) outPath = args[3];
 
-        float aspect = (float)width / height;
+        var (scene, camera) = CornellMaterialsShowcase.Create(width, height, tintedGlass: true);
 
-        // Materials
-        var ground = new Lambertian(new Vec3(0.75f, 0.75f, 0.75f));
-        var lightMat = new DiffuseLight(new Vec3(20f, 20f, 20f));
-
-        // Copper-ish / gold-ish F0 values are plausible for demo; we keep it simple.
-        var metalRough = new MicrofacetMetal(new Vec3(0.95f, 0.64f, 0.54f), roughness: 0.6f);
-        var metalMid = new MicrofacetMetal(new Vec3(0.95f, 0.64f, 0.54f), roughness: 0.25f);
-        var metalSharp = new MicrofacetMetal(new Vec3(0.95f, 0.64f, 0.54f), roughness: 0.05f);
-
-        // Scene geometry
-        var list = new HittableList();
-
-        // Ground plane as a big XZRect at y=0
-        list.Add(new XZRect(-10, 10, -10, 10, k: 0, ground));
-
-        // Area light rectangle above the spheres (XZ plane at y=5), emitting downward (use FlipFace)
-        list.Add(new FlipFace(new XZRect(-2, 2, -2, 2, k: 5f, lightMat)));
-
-        list.Add(new Sphere(new Vec3(-1.5f, 1f, -3f), 1f, metalRough));
-        list.Add(new Sphere(new Vec3(0.0f, 1f, -3f), 1f, metalMid));
-        list.Add(new Sphere(new Vec3(1.5f, 1f, -3f), 1f, metalSharp));
-
-        var world = new BvhNode(list.Objects);
-
-        var lights = new List<ILight>
-        {
-            // Light aligned with XZ plane at y=5, normal = -Y, radiance matches the emissive material above
-            new RectAreaLightXZ(-2, 2, -2, 2, k: 5f, normal: -Vec3.UnitY, radiance: new Vec3(20f,20f,20f))
-        };
-
-        var scene = new Scene(world, lights);
-
-        // Camera
-        var camera = new PinholeCamera(
-            vfovDegrees: 40f,
-            aspectRatio: aspect,
-            lookFrom: new Vec3(0f, 2f, 3f),
-            lookAt: new Vec3(0f, 1f, -3f),
-            vUp: Vec3.UnitY);
-
-        Console.WriteLine($"Rendering Microfacet (GGX) {width}x{height}, spp={spp} -> {outPath}");
+        Console.WriteLine($"Rendering image {width}x{height}, spp={spp}, threads={threads} -> {outPath}");
         var sw = Stopwatch.StartNew();
         int last = -1;
 
@@ -80,7 +42,13 @@ internal class Program
             Console.WriteLine($"Progress: {percent,3}%  Rows: {done}/{total}  Elapsed: {sw.Elapsed}");
         }
 
-        var pixels = PathTracer.Render(width, height, spp, maxDepth: 10, camera, scene, baseSeed: 123, reportRowsCompleted: Report);
+        var pixels = PathTracer.Render(
+            width, height, spp,
+            maxDepth: 12,
+            camera, scene,
+            baseSeed: 123,
+            reportRowsCompleted: Report,
+            maxDegreeOfParallelism: threads);
 
         Console.WriteLine();
 
