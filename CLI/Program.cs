@@ -39,7 +39,7 @@ internal class Program
             int percent = (int)(100.0 * done / total);
             if (percent == last) return;
             last = percent;
-            Console.WriteLine($"Progress: {percent,3}%  Rows: {done}/{total}  Elapsed: {sw.Elapsed}");
+            Console.WriteLine($"Progress: {percent,3}%  Tiles: {done}/{total}  Elapsed: {sw.Elapsed}");
         }
 
         var pixels = PathTracer.Render(
@@ -47,7 +47,8 @@ internal class Program
             maxDepth: 12,
             camera, scene,
             baseSeed: 123,
-            reportRowsCompleted: Report,
+            reportProgress: Report,
+            tileSize: 16,
             maxDegreeOfParallelism: threads);
 
         Console.WriteLine();

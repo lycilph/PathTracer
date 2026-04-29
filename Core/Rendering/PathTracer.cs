@@ -18,48 +18,83 @@ public static class PathTracer
         PinholeCamera camera,
         Scene.Scene scene,
         ulong baseSeed = 1,
-        Action<int, int>? reportRowsCompleted = null,
+        Action<int, int>? reportProgress = null,
+        int tileSize = 16,
         int? maxDegreeOfParallelism = null)
     {
         var film = new Vec3[width * height];
 
-        int rowsCompleted = 0;
+        // Build tiles (x0..x1, y0..y1)
+        var tiles = BuildTiles(width, height, tileSize);
+        int totalTiles = tiles.Count;
+        int tilesCompleted = 0;
 
         var options = new ParallelOptions
         {
             MaxDegreeOfParallelism = maxDegreeOfParallelism ?? Environment.ProcessorCount
         };
 
-        Parallel.For(0, height, options, y =>
+        // Parallelize over tiles
+        Parallel.ForEach(tiles, options, tile =>
         {
-            int rowOffset = y * width;
-
-            for (int x = 0; x < width; x++)
+            for (int y = tile.Y0; y < tile.Y1; y++)
             {
-                Vec3 sum = Vec3.Zero;
+                int rowOffset = y * width;
 
-                for (int s = 0; s < samplesPerPixel; s++)
+                for (int x = tile.X0; x < tile.X1; x++)
                 {
-                    // Deterministic per pixel+sample RNG seed → scheduling independent
-                    ulong seed = SeedHash.PixelSampleSeed(x, y, s, baseSeed);
-                    var rng = new Pcg32(seed);
-                    var sampler = new Sampler(rng);
+                    Vec3 sum = Vec3.Zero;
 
-                    float u = (x + sampler.Next1D()) / width;
-                    float v = (y + sampler.Next1D()) / height;
-                    var ray = camera.GetRay(u, 1f - v);
+                    // Important: keep sample accumulation order deterministic per pixel
+                    for (int s = 0; s < samplesPerPixel; s++)
+                    {
+                        ulong seed = SeedHash.PixelSampleSeed(x, y, s, baseSeed);
+                        var rng = new Pcg32(seed);
+                        var sampler = new Sampler(rng);
 
-                    sum += Li(ray, scene, sampler, maxDepth, bounce: 0, mediumSigmaA: Vec3.Zero);
+                        float u = (x + sampler.Next1D()) / width;
+                        float v = (y + sampler.Next1D()) / height;
+                        var ray = camera.GetRay(u, 1f - v);
+
+                        sum += Li(ray, scene, sampler, maxDepth, bounce: 0, mediumSigmaA: Vec3.Zero);
+                    }
+
+                    film[rowOffset + x] = sum / samplesPerPixel;
                 }
-
-                film[rowOffset + x] = sum / samplesPerPixel;
             }
 
-            int done = Interlocked.Increment(ref rowsCompleted);
-            reportRowsCompleted?.Invoke(done, height);
+            int done = Interlocked.Increment(ref tilesCompleted);
+            reportProgress?.Invoke(done, totalTiles);
         });
 
         return film;
+    }
+
+    private readonly struct Tile
+    {
+        public readonly int X0, X1, Y0, Y1;
+        public Tile(int x0, int x1, int y0, int y1) => (X0, X1, Y0, Y1) = (x0, x1, y0, y1);
+    }
+
+    private static List<Tile> BuildTiles(int width, int height, int tileSize)
+    {
+        if (tileSize <= 0) tileSize = 16;
+
+        var tiles = new System.Collections.Generic.List<Tile>(
+            ((width + tileSize - 1) / tileSize) * ((height + tileSize - 1) / tileSize));
+
+        for (int y0 = 0; y0 < height; y0 += tileSize)
+        {
+            int y1 = System.Math.Min(y0 + tileSize, height);
+
+            for (int x0 = 0; x0 < width; x0 += tileSize)
+            {
+                int x1 = System.Math.Min(x0 + tileSize, width);
+                tiles.Add(new Tile(x0, x1, y0, y1));
+            }
+        }
+
+        return tiles;
     }
 
     private static Vec3 Li(in Ray ray, Scene.Scene scene, Sampler sampler, int depth, int bounce, in Vec3 mediumSigmaA)
