@@ -1,5 +1,7 @@
 ﻿using Core.Camera;
 using Core.Math;
+using Core.Random;
+using Core.Sampling;
 using Core.Scene;
 
 namespace Core.Rendering;
@@ -13,6 +15,8 @@ public static class SimpleRenderer
     public static Vec3[] Render(int width, int height, PinholeCamera camera, IHittable world)
     {
         var pixels = new Vec3[width * height];
+        var rng = new Pcg32(123);
+        var sampler = new Sampler(rng);
 
         for (int y = 0; y < height; y++)
         {
@@ -22,7 +26,7 @@ public static class SimpleRenderer
                 float u = (x + 0.5f) / width;
                 float v = (y + 0.5f) / height;
 
-                var ray = camera.GetRay(u, 1f - v); // flip so y=0 is top row
+                var ray = camera.GetRay(u, 1f - v, sampler); // flip so y=0 is top row
                 pixels[y * width + x] = RayColor(ray, world);
             }
         }

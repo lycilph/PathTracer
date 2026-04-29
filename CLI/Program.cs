@@ -16,9 +16,9 @@ internal class Program
 
         int width = 400;
         int height = 400;
-        int spp = 5000;
+        int spp = 500;
         int threads = Environment.ProcessorCount-1;
-        string outPath = $"cornell_box_multithreaded_{spp}spp.ppm";
+        string outPath = $"Image_pinhole_{spp}spp.ppm";
 
         if (args.Length >= 3)
         {
@@ -28,7 +28,11 @@ internal class Program
         }
         if (args.Length >= 4) outPath = args[3];
 
-        var (scene, camera) = CornellMaterialsShowcase.Create(width, height, tintedGlass: true);
+        //var (scene, camera) = CornellMaterialsShowcase.Create(width, height, tintedGlass: true);
+
+        var useThinLens = false;
+        var (scene, pinhole, thin) = ThinLensDofShowcase.Create(width, height);
+        var camera = useThinLens ? thin : pinhole;
 
         Console.WriteLine($"Rendering image {width}x{height}, spp={spp}, threads={threads} -> {outPath}");
         var sw = Stopwatch.StartNew();

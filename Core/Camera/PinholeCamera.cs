@@ -1,4 +1,5 @@
 ﻿using Core.Math;
+using Core.Sampling;
 
 namespace Core.Camera;
 
@@ -6,7 +7,7 @@ namespace Core.Camera;
 /// Simple pinhole camera producing rays through an image plane.
 /// Coordinate conventions are documented in docs/conventions.md.
 /// </summary>
-public sealed class PinholeCamera
+public sealed class PinholeCamera : ICamera
 {
     private readonly Vec3 _origin;
     private readonly Vec3 _horizontal;
@@ -14,12 +15,6 @@ public sealed class PinholeCamera
     private readonly Vec3 _lowerLeftCorner;
     private readonly float _time;
 
-    /// <param name="vfovDegrees">Vertical field of view in degrees.</param>
-    /// <param name="aspectRatio">width/height</param>
-    /// <param name="lookFrom">Camera origin.</param>
-    /// <param name="lookAt">Target point.</param>
-    /// <param name="vUp">Up direction.</param>
-    /// <param name="time">Ray time (for future motion blur; constant in this camera).</param>
     public PinholeCamera(
         float vfovDegrees,
         float aspectRatio,
@@ -37,19 +32,16 @@ public sealed class PinholeCamera
         float viewportWidth = aspectRatio * viewportHeight;
 
         // Camera basis
-        Vec3 w = (lookFrom - lookAt).Normalized();
-        Vec3 u = Vec3.Cross(vUp, w).Normalized();
-        Vec3 v = Vec3.Cross(w, u);
+        Vec3 w = (lookFrom - lookAt).Normalized();      // backward
+        Vec3 u = Vec3.Cross(vUp, w).Normalized();       // right
+        Vec3 v = Vec3.Cross(w, u);                      // up
 
         _horizontal = u * viewportWidth;
         _vertical = v * viewportHeight;
-        _lowerLeftCorner = _origin - _horizontal / 2f - _vertical / 2f - w;
+        _lowerLeftCorner = _origin - _horizontal / 2f - _vertical / 2f - w; // image plane at distance 1
     }
 
-    /// <summary>
-    /// u,v are in [0,1] across the viewport.
-    /// </summary>
-    public Ray GetRay(float u, float v)
+    public Ray GetRay(float u, float v, Sampler sampler)
     {
         var dir = _lowerLeftCorner + _horizontal * u + _vertical * v - _origin;
         return new Ray(_origin, dir, _time);

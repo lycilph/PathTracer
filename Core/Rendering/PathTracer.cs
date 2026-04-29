@@ -15,7 +15,7 @@ public static class PathTracer
         int height,
         int samplesPerPixel,
         int maxDepth,
-        PinholeCamera camera,
+        ICamera camera,
         Scene.Scene scene,
         ulong baseSeed = 1,
         Action<int, int>? reportProgress = null,
@@ -54,7 +54,7 @@ public static class PathTracer
 
                         float u = (x + sampler.Next1D()) / width;
                         float v = (y + sampler.Next1D()) / height;
-                        var ray = camera.GetRay(u, 1f - v);
+                        var ray = camera.GetRay(u, 1f - v, sampler);
 
                         sum += Li(ray, scene, sampler, maxDepth, bounce: 0, mediumSigmaA: Vec3.Zero);
                     }
