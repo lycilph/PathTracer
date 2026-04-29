@@ -23,6 +23,7 @@
     <None Include="$(MSBuildThisFileDirectory)milestone-6.1-tinted-glass.md" />
     <None Include="$(MSBuildThisFileDirectory)milestone-7-microfacet.md" />
     <None Include="$(MSBuildThisFileDirectory)milestone-8-thin-lens-dof.md" />
+    <None Include="$(MSBuildThisFileDirectory)milestone-9-motion-blur.md" />
     <None Include="$(MSBuildThisFileDirectory)mini-transforms.md" />
   </ItemGroup>
 </Project>
