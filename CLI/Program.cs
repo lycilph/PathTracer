@@ -12,10 +12,11 @@ internal class Program
 {
     static void Main(string[] args)
     {
+
         int width = 400;
-        int height = 400;
-        int spp = 50;
-        string outPath = $"milestone6_cornell_specular_{spp}spp.ppm";
+        int height = 225;
+        int spp = 1000;
+        string outPath = $"milestone7_microfacet_{spp}spp.ppm";
 
         if (args.Length >= 3)
         {
@@ -27,44 +28,47 @@ internal class Program
 
         float aspect = (float)width / height;
 
-        var red = new Lambertian(new Vec3(0.65f, 0.05f, 0.05f));
-        var green = new Lambertian(new Vec3(0.12f, 0.45f, 0.15f));
-        var white = new Lambertian(new Vec3(0.73f, 0.73f, 0.73f));
-        var lightMat = new DiffuseLight(new Vec3(15f, 15f, 15f));
+        // Materials
+        var ground = new Lambertian(new Vec3(0.75f, 0.75f, 0.75f));
+        var lightMat = new DiffuseLight(new Vec3(20f, 20f, 20f));
 
-        var mirror = new Mirror(new Vec3(0.95f, 0.95f, 0.95f));
-        var glass = new Dielectric(
-            ior: 1.5f,
-            tint: new Vec3(0.6f, 0.9f, 0.6f),
-            absorptionStrength: 0.01f);
+        // Copper-ish / gold-ish F0 values are plausible for demo; we keep it simple.
+        var metalRough = new MicrofacetMetal(new Vec3(0.95f, 0.64f, 0.54f), roughness: 0.6f);
+        var metalMid = new MicrofacetMetal(new Vec3(0.95f, 0.64f, 0.54f), roughness: 0.25f);
+        var metalSharp = new MicrofacetMetal(new Vec3(0.95f, 0.64f, 0.54f), roughness: 0.05f);
 
+        // Scene geometry
         var list = new HittableList();
-        list.Add(new YZRect(0, 555, 0, 555, 555, green));
-        list.Add(new YZRect(0, 555, 0, 555, 0, red));
-        list.Add(new XZRect(0, 555, 0, 555, 0, white));
-        list.Add(new XZRect(0, 555, 0, 555, 555, white));
-        list.Add(new XYRect(0, 555, 0, 555, 555, white));
-        list.Add(new FlipFace(new XZRect(213, 343, 227, 332, 554, lightMat)));
 
-        list.Add(new Sphere(new Vec3(190f, 90f, 190f), 90f, mirror));
-        list.Add(new Sphere(new Vec3(370f, 90f, 370f), 90f, glass));
+        // Ground plane as a big XZRect at y=0
+        list.Add(new XZRect(-10, 10, -10, 10, k: 0, ground));
+
+        // Area light rectangle above the spheres (XZ plane at y=5), emitting downward (use FlipFace)
+        list.Add(new FlipFace(new XZRect(-2, 2, -2, 2, k: 5f, lightMat)));
+
+        list.Add(new Sphere(new Vec3(-1.5f, 1f, -3f), 1f, metalRough));
+        list.Add(new Sphere(new Vec3(0.0f, 1f, -3f), 1f, metalMid));
+        list.Add(new Sphere(new Vec3(1.5f, 1f, -3f), 1f, metalSharp));
 
         var world = new BvhNode(list.Objects);
 
         var lights = new List<ILight>
         {
-            new RectAreaLightXZ(213, 343, 227, 332, 554, normal: -Vec3.UnitY, radiance: new Vec3(15f,15f,15f))
+            // Light aligned with XZ plane at y=5, normal = -Y, radiance matches the emissive material above
+            new RectAreaLightXZ(-2, 2, -2, 2, k: 5f, normal: -Vec3.UnitY, radiance: new Vec3(20f,20f,20f))
         };
+
         var scene = new Scene(world, lights);
 
+        // Camera
         var camera = new PinholeCamera(
             vfovDegrees: 40f,
             aspectRatio: aspect,
-            lookFrom: new Vec3(278f, 278f, -800f),
-            lookAt: new Vec3(278f, 278f, 0f),
+            lookFrom: new Vec3(0f, 2f, 3f),
+            lookAt: new Vec3(0f, 1f, -3f),
             vUp: Vec3.UnitY);
 
-        Console.WriteLine($"Rendering Cornell (Mirror+Glass) {width}x{height}, spp={spp} -> {outPath}");
+        Console.WriteLine($"Rendering Microfacet (GGX) {width}x{height}, spp={spp} -> {outPath}");
         var sw = Stopwatch.StartNew();
         int last = -1;
 
@@ -76,7 +80,8 @@ internal class Program
             Console.WriteLine($"Progress: {percent,3}%  Rows: {done}/{total}  Elapsed: {sw.Elapsed}");
         }
 
-        var pixels = PathTracer.Render(width, height, spp, maxDepth: 12, camera, scene, baseSeed: 123, reportRowsCompleted: Report);
+        var pixels = PathTracer.Render(width, height, spp, maxDepth: 10, camera, scene, baseSeed: 123, reportRowsCompleted: Report);
+
         Console.WriteLine();
 
         PpmWriter.WriteP6(outPath, width, height, pixels);
