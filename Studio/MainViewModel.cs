@@ -47,6 +47,7 @@ notes:
 
     [ObservableProperty] private string widthInput = "640";
     [ObservableProperty] private string heightInput = "360";
+    [ObservableProperty] private string targetSppInput = "256";
     [ObservableProperty] private string tileSizeInput = "16";
     [ObservableProperty] private string threadsInput = "";
     [ObservableProperty] private string sceneScript = "";
@@ -69,6 +70,9 @@ notes:
         int height = ParseInt(HeightInput, 360);
         int tileSize = ParseInt(TileSizeInput, 16);
         int? threads = string.IsNullOrWhiteSpace(ThreadsInput) ? null : ParseInt(ThreadsInput, Environment.ProcessorCount);
+
+        int targetSppParsed = ParseInt(TargetSppInput, 0);
+        int? targetSpp = targetSppParsed > 0 ? targetSppParsed : null;
 
         _accum = new AccumulationBuffer(width, height);
 
@@ -97,7 +101,8 @@ notes:
                     reportProgress: p => PostStats(p),
                     reportTileUpdated: (x0, y0, w, h) => PostTileUpdate(x0, y0, w, h),
                     maxDegreeOfParallelism: threads,
-                    progressEveryNTiles: 8);
+                    progressEveryNTiles: 8,
+                    targetSpp: targetSpp);
             }, token);
         }
         catch (OperationCanceledException)
@@ -113,7 +118,7 @@ notes:
         {
             // optional: set final status
             if (!token.IsCancellationRequested)
-                StatusText = "Finished";
+                StatusText = targetSpp.HasValue ? $"Finished (Target SPP {targetSpp.Value})" : "Finished";
         }
     }
 
@@ -122,6 +127,13 @@ notes:
         var sb = new StringBuilder();
         sb.AppendLine($"Resolution: {p.Width} x {p.Height}");
         sb.AppendLine($"SPP min/max: {p.SamplesPerPixelMin} / {p.SamplesPerPixelMax}");
+
+        if (ParseInt(TargetSppInput, 0) > 0)
+        {
+            int target = ParseInt(TargetSppInput, 0);
+            sb.AppendLine($"Target SPP: {target}  (min {p.SamplesPerPixelMin})");
+        }
+
         sb.AppendLine($"Tiles: {p.TilesDone} / {p.TilesTotal}");
         sb.AppendLine($"Elapsed: {p.ElapsedSeconds:0.0}s");
         sb.AppendLine($"Samples/sec: {p.SamplesPerSecond:0}");

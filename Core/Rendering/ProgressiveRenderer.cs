@@ -31,7 +31,8 @@ public static class ProgressiveRenderer
         Action<RenderProgress>? reportProgress,
         Action<int, int, int, int>? reportTileUpdated, // (x0,y0,w,h) for UI dirty-rect updates
         int? maxDegreeOfParallelism = null,
-        int progressEveryNTiles = 8)
+        int progressEveryNTiles = 8,
+        int? targetSpp = null)
     {
         if (accum.Width != width || accum.Height != height)
             throw new ArgumentException("AccumulationBuffer size mismatch");
@@ -48,15 +49,12 @@ public static class ProgressiveRenderer
         var sw = Stopwatch.StartNew();
         long totalSamples = 0;
 
-        // Progressive loop: keep rendering passes until cancelled
+        // Progressive loop: keep rendering passes until cancelled OR target spp reached
         while (!token.IsCancellationRequested)
         {
-            // One pass adds exactly one sample per pixel (in tile order).
-            // sampleIndex per pixel = current spp at that pixel before adding the new sample.
             int tilesDoneThisPass = 0;
             double passStart = sw.Elapsed.TotalSeconds;
 
-            // Parallel over tiles
             Parallel.ForEach(tiles, options, tile =>
             {
                 options.CancellationToken.ThrowIfCancellationRequested();
@@ -67,7 +65,6 @@ public static class ProgressiveRenderer
                     {
                         int sampleIndex = accum.GetSpp(x, y);
 
-                        // Deterministic RNG per pixel+sample
                         ulong seed = SeedHash.PixelSampleSeed(x, y, sampleIndex, baseSeed);
                         var rng = new Pcg32(seed);
                         var sampler = new Sampler(rng);
@@ -77,35 +74,27 @@ public static class ProgressiveRenderer
 
                         var ray = camera.GetRay(u, 1f - v, sampler);
 
-                        // Integrator call (your existing Li chain inside PathTracer)
-                        // We reuse PathTracer through the Scene pipeline by calling a single-sample evaluation.
-                        // For minimal disruption, call PathTracerSingleSample below.
                         Vec3 c = PathTracerSingleSample(ray, scene, sampler);
 
                         accum.AddSample(x, y, c);
                     }
                 }
 
-                // Mark tile updated for UI
                 reportTileUpdated?.Invoke(tile.X0, tile.Y0, tile.X1 - tile.X0, tile.Y1 - tile.Y0);
 
                 int done = Interlocked.Increment(ref tilesDoneThisPass);
 
-                // Progress reporting throttled
                 if (reportProgress != null && (done % progressEveryNTiles == 0 || done == tilesTotal))
                 {
-                    long samplesNow = Interlocked.Add(ref totalSamples, 0);
-                    double elapsed = sw.Elapsed.TotalSeconds;
-
                     int sppMin = accum.GetSppMinMax(out int sppMax);
                     float avgLum = accum.ComputeAverageLuminance();
 
-                    double tilesElapsed = sw.Elapsed.TotalSeconds - passStart;
-                    double msPerTile = tilesElapsed > 0 ? (tilesElapsed * 1000.0) / done : 0;
+                    double elapsed = sw.Elapsed.TotalSeconds;
+                    double msPerTile = (sw.Elapsed.TotalSeconds - passStart) > 0
+                        ? ((sw.Elapsed.TotalSeconds - passStart) * 1000.0) / done
+                        : 0;
 
-                    // Each tile covers (tilePixels) samples in this pass
-                    // totalSamples is tracked separately after pass ends below for accuracy
-                    double sppPerSec = elapsed > 0 ? samplesNow / elapsed : 0;
+                    double sppPerSec = elapsed > 0 ? totalSamples / elapsed : 0;
 
                     reportProgress(new RenderProgress(
                         Width: width,
@@ -121,9 +110,18 @@ public static class ProgressiveRenderer
                 }
             });
 
-            // Pass finished: update totalSamples deterministically
+            // Completed one full pass => every pixel should have +1 spp (unless cancelled mid-pass)
             totalSamples += (long)width * height;
-            await Task.Yield(); // allow UI thread to breathe
+
+            // Stop automatically when we reached target spp for all pixels
+            if (targetSpp.HasValue)
+            {
+                int sppMin = accum.GetSppMinMax(out _);
+                if (sppMin >= targetSpp.Value)
+                    break;
+            }
+
+            await Task.Yield();
         }
     }
 
