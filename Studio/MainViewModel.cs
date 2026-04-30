@@ -15,7 +15,7 @@ public partial class MainViewModel : ObservableObject
 {
     private readonly SynchronizationContext _ui;
 
-    private CancellationTokenSource? _externalCts; // optional: if you also want manual CTS control
+    //private CancellationTokenSource? _externalCts; // optional: if you also want manual CTS control
 
     private WriteableBitmapPresenter? _presenter;
     private AccumulationBuffer? _accum;
@@ -59,8 +59,7 @@ notes:
         // optional hook for logging or other
     }
 
-    // Start command (async) with built-in cancellation support.
-    // IncludeCancelCommand generates StartRenderCancelCommand automatically. [6](https://learn.microsoft.com/en-us/dotnet/api/communitytoolkit.mvvm.input.relaycommandattribute.includecancelcommand?view=dotnet-comm-toolkit-8.4)[3](https://learn.microsoft.com/en-us/dotnet/communitytoolkit/mvvm/generators/relaycommand)
+
     [RelayCommand(IncludeCancelCommand = true)]
     private async Task StartRenderAsync(CancellationToken token)
     {
@@ -75,37 +74,46 @@ notes:
 
         _presenter ??= new WriteableBitmapPresenter(width, height);
         _presenter.Resize(width, height);
+
+        // Set RenderImage on UI thread before we start background work
         RenderImage = _presenter.Bitmap;
 
         var (scene, camera) = BuildSceneFromScript(width, height);
 
-        // Progressive render loop: update tiles as they finish.
-        await ProgressiveRenderer.RenderLoopAsync(
-            width: width,
-            height: height,
-            camera: camera,
-            scene: scene,
-            accum: _accum,
-            tileSize: tileSize,
-            baseSeed: 123,
-            token: token,
-            reportProgress: p => PostStats(p),
-            reportTileUpdated: (x0, y0, w, h) => PostTileUpdate(x0, y0, w, h),
-            maxDegreeOfParallelism: threads,
-            progressEveryNTiles: 8);
-
-        StatusText = "Stopped";
-    }
-
-    // Optional explicit Stop command, if you want a separate Stop button binding.
-    // If you use IncludeCancelCommand, you can bind Stop to StartRenderCancelCommand instead. [6](https://learn.microsoft.com/en-us/dotnet/api/communitytoolkit.mvvm.input.relaycommandattribute.includecancelcommand?view=dotnet-comm-toolkit-8.4)
-    [RelayCommand]
-    private void StopRender()
-    {
-        if (StartRenderCommand.IsRunning)
+        try
         {
-            StartRenderCancelCommand.Execute(null);
-            StatusText = "Cancelling...";
+            // Important: move the long-running progressive loop off the UI thread
+            await Task.Run(async () =>
+            {
+                await ProgressiveRenderer.RenderLoopAsync(
+                    width: width,
+                    height: height,
+                    camera: camera,
+                    scene: scene,
+                    accum: _accum,
+                    tileSize: tileSize,
+                    baseSeed: 123,
+                    token: token,
+                    reportProgress: p => PostStats(p),
+                    reportTileUpdated: (x0, y0, w, h) => PostTileUpdate(x0, y0, w, h),
+                    maxDegreeOfParallelism: threads,
+                    progressEveryNTiles: 8);
+            }, token);
+        }
+        catch (OperationCanceledException)
+        {
+            StatusText = "Stopped";
+        }
+        catch (Exception ex)
+        {
+            StatusText = "Error";
+            StatsText = ex.ToString();
+        }
+        finally
+        {
+            // optional: set final status
+            if (!token.IsCancellationRequested)
+                StatusText = "Finished";
         }
     }
 

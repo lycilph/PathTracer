@@ -35,13 +35,19 @@
 
                 <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
                     <Button Content="Start" Width="100" Margin="0,0,8,0" Command="{Binding StartRenderCommand}"/>
-                    <Button Content="Stop" Width="100" Command="{Binding StopRenderCommand}"/>
+                    <Button Content="Stop" Width="100" Command="{Binding StartRenderCancelCommand}"/>
                 </StackPanel>
 
                 <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
                     <TextBlock Text="Resolution" Width="80" VerticalAlignment="Center"/>
                     <TextBox Text="{Binding WidthInput}" Width="80" Margin="0,0,8,0"/>
                     <TextBox Text="{Binding HeightInput}" Width="80"/>
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                    <TextBlock Text="Target SPP" Width="80" VerticalAlignment="Center"/>
+                    <TextBox Text="{Binding TargetSppInput}" Width="80" Margin="0,0,8,0"/>
+                    <TextBlock Text="(0 = infinite)" VerticalAlignment="Center"/>
                 </StackPanel>
 
                 <StackPanel Orientation="Horizontal">
