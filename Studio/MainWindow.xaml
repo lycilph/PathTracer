@@ -33,10 +33,16 @@
             <StackPanel Grid.Row="0" Orientation="Vertical" Margin="0,0,0,12">
                 <TextBlock Text="Render Controls" FontWeight="SemiBold" Margin="0,0,0,6"/>
 
-                <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                <DockPanel Margin="0,0,0,6">
+                    <Button DockPanel.Dock="Left" Content="Start" Width="100" Margin="0,0,8,0" Command="{Binding StartRenderCommand}"/>
+                    <Button DockPanel.Dock="Left" Content="Stop" Width="100" Margin="0,0,8,0" Command="{Binding StartRenderCancelCommand}"/>
+                    <ProgressBar IsIndeterminate="{Binding ProgressIndeterminate}" Value="{Binding ProgressPercentage}"/>
+                </DockPanel>
+
+                <!--<StackPanel Orientation="Horizontal" Margin="0,0,0,6">
                     <Button Content="Start" Width="100" Margin="0,0,8,0" Command="{Binding StartRenderCommand}"/>
                     <Button Content="Stop" Width="100" Command="{Binding StartRenderCancelCommand}"/>
-                </StackPanel>
+                </StackPanel>-->
 
                 <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
                     <TextBlock Text="Resolution" Width="80" VerticalAlignment="Center"/>

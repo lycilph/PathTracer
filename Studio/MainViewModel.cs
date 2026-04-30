@@ -52,6 +52,9 @@ notes:
     [ObservableProperty] private string threadsInput = "";
     [ObservableProperty] private string sceneScript = "";
 
+    [ObservableProperty] private int progressPercentage = 0;
+    [ObservableProperty] private bool progressIndeterminate = false;
+
     // A derived property to enable/disable Start in XAML if you want it:
     public bool CanStart => !StartRenderCommand.IsRunning; // IAsyncRelayCommand exposes IsRunning [4](https://learn.microsoft.com/en-us/dotnet/communitytoolkit/mvvm/asyncrelaycommand)
 
@@ -73,6 +76,11 @@ notes:
 
         int targetSppParsed = ParseInt(TargetSppInput, 0);
         int? targetSpp = targetSppParsed > 0 ? targetSppParsed : null;
+
+        if (targetSpp == null)
+            ProgressIndeterminate = true;
+        else
+            ProgressPercentage = 0;
 
         _accum = new AccumulationBuffer(width, height);
 
@@ -119,6 +127,9 @@ notes:
             // optional: set final status
             if (!token.IsCancellationRequested)
                 StatusText = targetSpp.HasValue ? $"Finished (Target SPP {targetSpp.Value})" : "Finished";
+
+            ProgressIndeterminate = false;
+            ProgressPercentage = 0;
         }
     }
 
@@ -132,6 +143,8 @@ notes:
         {
             int target = ParseInt(TargetSppInput, 0);
             sb.AppendLine($"Target SPP: {target}  (min {p.SamplesPerPixelMin})");
+
+            ProgressPercentage = (p.SamplesPerPixelMin * 100) / target;
         }
 
         sb.AppendLine($"Tiles: {p.TilesDone} / {p.TilesTotal}");
