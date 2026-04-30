@@ -2,5 +2,6 @@
   <Project Path="CLI/CLI.csproj" Id="d986dde7-e966-4aae-a8ea-bd99f44c95cc" />
   <Project Path="Core/Core.csproj" />
   <Project Path="Docs/Docs.shproj" Id="bdf9e6c6-e985-4298-ade3-0e8780d6b392" />
+  <Project Path="Studio/Studio.csproj" Id="0d9632c4-d241-4d8a-9800-6ca9363eeb70" />
   <Project Path="Tests/Tests.csproj" Id="fd4caa0b-54d1-4a76-a612-1a669d9ce482" />
 </Solution>

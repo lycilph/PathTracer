@@ -97,6 +97,13 @@ public static class PathTracer
         return tiles;
     }
 
+    public static Vec3 EvaluateRay(in Ray ray, Scene.Scene scene, Sampler sampler)
+    {
+        // Use your existing recursive Li with MIS/RR/delta/etc.
+        const int defaultMaxDepth = 10;
+        return Li(ray, scene, sampler, defaultMaxDepth, bounce: 0, mediumSigmaA: Vec3.Zero);
+    }
+
     private static Vec3 Li(in Ray ray, Scene.Scene scene, Sampler sampler, int depth, int bounce, in Vec3 mediumSigmaA)
     {
         if (depth <= 0)
