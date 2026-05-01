@@ -73,13 +73,11 @@
             <Border Grid.Row="2" BorderBrush="#444" BorderThickness="1" CornerRadius="4" Padding="8">
                 <DockPanel>
                     <TextBlock DockPanel.Dock="Top" Text="Scene Script" FontWeight="SemiBold" Margin="0,0,0,6"/>
-                    <TextBox Text="{Binding SceneScript}"
-                             AcceptsReturn="True"
-                             AcceptsTab="True"
-                             VerticalScrollBarVisibility="Auto"
-                             HorizontalScrollBarVisibility="Auto"
-                             FontFamily="Consolas"
-                             TextWrapping="NoWrap"/>
+                    <local:SceneScriptEditor 
+                        x:Name="ScriptEditor"
+                        Text="{Binding SceneScript, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                        Diagnostics="{Binding ScriptDiagnostics}"
+                        GoToDiagnosticCommand="{Binding GoToDiagnosticCommand}" />
                 </DockPanel>
             </Border>
 

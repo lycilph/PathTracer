@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using System.Collections.ObjectModel;
+using System.Text;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -18,6 +19,10 @@ public partial class MainViewModel : ObservableObject
 
     private WriteableBitmapPresenter? _presenter;
     private AccumulationBuffer? _accum;
+
+    private CancellationTokenSource? _compileDebounceCts;
+    
+    public event Action<int, int>? GoToRequested; // (line, column)
 
     public MainViewModel()
     {
@@ -56,6 +61,11 @@ return Scene.CornellSimple(thinLens: false);
     [ObservableProperty] private int progressPercentage = 0;
     [ObservableProperty] private bool progressIndeterminate = false;
 
+
+    [ObservableProperty]
+    private ObservableCollection<ScriptDiagnosticItem> scriptDiagnostics = [];
+
+
     // A derived property to enable/disable Start in XAML if you want it:
     public bool CanStart => !StartRenderCommand.IsRunning; // IAsyncRelayCommand exposes IsRunning [4](https://learn.microsoft.com/en-us/dotnet/communitytoolkit/mvvm/asyncrelaycommand)
 
@@ -64,6 +74,29 @@ return Scene.CornellSimple(thinLens: false);
         // optional hook for logging or other
     }
 
+    partial void OnSceneScriptChanged(string value)
+    {
+        _compileDebounceCts?.Cancel();
+        _compileDebounceCts = new CancellationTokenSource();
+        var token = _compileDebounceCts.Token;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(300, token); // debounce
+                CompileScriptForDiagnostics(value);
+            }
+            catch (OperationCanceledException) { }
+        });
+    }
+
+    [RelayCommand]
+    private void GoToDiagnostic(ScriptDiagnosticItem? diag)
+    {
+        if (diag is null) return;
+        GoToRequested?.Invoke(diag.Line, diag.Column);
+    }
 
     [RelayCommand(IncludeCancelCommand = true)]
     private async Task StartRenderAsync(CancellationToken token)
@@ -96,7 +129,6 @@ return Scene.CornellSimple(thinLens: false);
         if (built is null) return;
 
         var (scene, camera) = built.Value;
-
 
         try
         {
@@ -204,4 +236,70 @@ return Scene.CornellSimple(thinLens: false);
 
     private static int ParseInt(string s, int fallback)
         => int.TryParse(s, out var v) ? v : fallback;
+
+
+    private void CompileScriptForDiagnostics(string code)
+    {
+        var result = _scriptEngine.TryCompile(code);
+
+        var items = new List<ScriptDiagnosticItem>();
+
+        foreach (var d in result.Diagnostics)
+        {
+            // Expected format: "Severity ID (line,col): message"
+            // Example: "Error CS1002 (12,5): ; expected"
+            if (!TryParseDiagnostic(d, out var item))
+                continue;
+
+            items.Add(item);
+        }
+
+        // Update UI collection on UI thread
+        _ui.Post(_ =>
+        {
+            ScriptDiagnostics.Clear();
+            foreach (var it in items)
+                ScriptDiagnostics.Add(it);
+        }, null);
+    }
+
+    private static bool TryParseDiagnostic(string text, out ScriptDiagnosticItem item)
+    {
+        item = new ScriptDiagnosticItem();
+
+        int p1 = text.IndexOf(' ');
+        if (p1 < 0) return false;
+
+        string severity = text.Substring(0, p1).Trim();
+
+        int p2 = text.IndexOf(' ', p1 + 1);
+        if (p2 < 0) return false;
+
+        string id = text.Substring(p1 + 1, p2 - (p1 + 1)).Trim();
+
+        int lp = text.IndexOf('(', p2 + 1);
+        int rp = text.IndexOf(')', lp + 1);
+        if (lp < 0 || rp < 0) return false;
+
+        string loc = text.Substring(lp + 1, rp - lp - 1); // "line,col"
+        var parts = loc.Split(',');
+        if (parts.Length != 2) return false;
+
+        if (!int.TryParse(parts[0], out int line)) return false;
+        if (!int.TryParse(parts[1], out int col)) return false;
+
+        int colon = text.IndexOf(':', rp + 1);
+        string msg = colon >= 0 ? text.Substring(colon + 1).Trim() : "";
+
+        item = new ScriptDiagnosticItem
+        {
+            Severity = severity,
+            Id = id,
+            Line = line,
+            Column = col,
+            Message = msg
+        };
+
+        return true;
+    }
 }

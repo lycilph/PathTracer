@@ -7,6 +7,10 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        DataContext = new MainViewModel();
+
+        var vm = new MainViewModel();
+        DataContext = vm;
+
+        vm.GoToRequested += (line, col) => ScriptEditor.GoTo(line, col);
     }
 }
