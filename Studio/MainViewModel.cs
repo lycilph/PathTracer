@@ -68,11 +68,14 @@ return Scene.CornellSimple(thinLens: false);
     [ObservableProperty] private string threadsInput = "";
     [ObservableProperty] private string sceneScript = "";
 
+    [ObservableProperty] private string photonsPerPassInput = "500000";
+    [ObservableProperty] private string photonMaxDepthInput = "12";
+
     [ObservableProperty] private int progressPercentage = 0;
     [ObservableProperty] private bool progressIndeterminate = false;
 
-
     [ObservableProperty] private string selectedDebugBuffer = "Beauty";
+
     public string[] DebugBufferNames { get; } =
     {
         "Beauty",
@@ -236,6 +239,19 @@ return Scene.CornellSimple(thinLens: false);
         StatusText = "Stopped";
     }
 
+    private int GetPhotonsPerPass()
+    {
+        // 1M default, clamp to avoid accidental “1000000000”
+        int v = ParseInt(PhotonsPerPassInput, 1_000_000);
+        return Math.Clamp(v, 1_000, 50_000_000);
+    }
+
+    private int GetPhotonMaxDepth()
+    {
+        int v = ParseInt(PhotonMaxDepthInput, 12);
+        return Math.Clamp(v, 1, 64);
+    }
+
     private void RunPhotonDebugIteration()
     {
         if (_debugBuffers == null || _lastScene == null || _lastCamera == null)
@@ -244,12 +260,15 @@ return Scene.CornellSimple(thinLens: false);
         // 1) Eye pass debug (optional each iteration; you can keep it only on view change if you want)
         RefreshEyeDebug(_debugBuffers.Width, _debugBuffers.Height, _lastCamera, _lastScene);
 
+        int photonsPerPass = GetPhotonsPerPass();
+        int photonMaxDepth = GetPhotonMaxDepth();
+
         // 2) Photon pass
         var stats = new PhotonTraceStats();
         var photons = PhotonTracer.TracePhotonPass(
             scene: _lastScene,
-            photonsPerPass: 1_000_000,      // relaxed time constraints; tweak later
-            maxDepth: 12,
+            photonsPerPass: photonsPerPass,      // relaxed time constraints; tweak later
+            maxDepth: photonMaxDepth,
             baseSeed: 12345,
             iterationIndex: _sppmIteration++,
             stats: stats);
@@ -268,6 +287,8 @@ return Scene.CornellSimple(thinLens: false);
         {
             StatsText =
                 $"SPPM 12.1 Photon Pass\n" +
+                $"Photons/pass:      {photonsPerPass}\n" +
+                $"Photon max depth:  {photonMaxDepth}\n" +
                 $"Photons requested: {stats.PhotonsRequested}\n" +
                 $"Photons emitted:   {stats.PhotonsEmitted}\n" +
                 $"Photons stored:    {stats.PhotonsStored} (Lambertian only)\n" +
