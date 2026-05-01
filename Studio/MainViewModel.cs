@@ -115,10 +115,14 @@ return Scene.CornellSimple(thinLens: false);
 
     partial void OnSelectedDebugBufferChanged(string value)
     {
-        if (value != "Beauty" && _debugBuffers != null && _lastScene != null && _lastCamera != null)
+        if (_debugBuffers == null || _lastScene == null || _lastCamera == null) return;
+
+        if (value != "Beauty")
         {
             RefreshEyeDebug(_debugBuffers.Width, _debugBuffers.Height, _lastCamera, _lastScene);
         }
+
+        PostTileUpdate(0, 0, _debugBuffers.Width, _debugBuffers.Height);
     }
 
     [RelayCommand]
@@ -236,7 +240,6 @@ return Scene.CornellSimple(thinLens: false);
     private void PostTileUpdate(int x0, int y0, int w, int h)
     {
         if (_accum is null || _presenter is null) return;
-
 
         _ui.Post(_ =>
         {
