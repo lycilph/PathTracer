@@ -40,6 +40,11 @@
                 </DockPanel>
 
                 <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                    <Button DockPanel.Dock="Left" Content="Run SPPM" Width="100" Margin="0,0,8,0" Command="{Binding StartSppmDebugCommand}"/>
+                    <Button DockPanel.Dock="Left" Content="Stop SPPM" Width="100" Margin="0,0,8,0" Command="{Binding StartSppmDebugCancelCommand}"/>
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
                     <TextBlock Text="Resolution" Width="80" VerticalAlignment="Center"/>
                     <TextBox Text="{Binding WidthInput}" Width="80" Margin="0,0,8,0"/>
                     <TextBox Text="{Binding HeightInput}" Width="80"/>

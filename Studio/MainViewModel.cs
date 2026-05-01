@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.Input;
 using Core.Camera;
 using Core.Debugging;
 using Core.Math;
+using Core.PhotonMapping;
 using Core.Rendering;
 using Core.Scene;
 using Scripting;
@@ -24,10 +25,12 @@ public partial class MainViewModel : ObservableObject
 
     private DebugBufferSet? _debugBuffers;
     private int _debugIteration;
+    private int _sppmIteration;
     private float _depthInvMax = 1f;
     private readonly object _debugLock = new();
     private ICamera? _lastCamera;
     private Scene? _lastScene;
+
 
     public event Action<int, int>? GoToRequested; // (line, column)
 
@@ -78,6 +81,9 @@ return Scene.CornellSimple(thinLens: false);
         "Albedo",
         "VisiblePointMask",
         "Throughput",
+        "PhotonHitMapXZ",
+        "PhotonFluxMapXZ",
+        // Placerholders below this
         "Radius",
         "PhotonCountN",
         "PhotonCountM",
@@ -214,6 +220,66 @@ return Scene.CornellSimple(thinLens: false);
         }
     }
 
+    [RelayCommand(IncludeCancelCommand = true)]
+    private async Task StartSppmDebugAsync(CancellationToken token)
+    {
+        StatusText = "SPPM (Photon Debug) running...";
+
+        await Task.Run(() =>
+        {
+            while (!token.IsCancellationRequested)
+            {
+                RunPhotonDebugIteration();
+            }
+        }, token);
+
+        StatusText = "Stopped";
+    }
+
+    private void RunPhotonDebugIteration()
+    {
+        if (_debugBuffers == null || _lastScene == null || _lastCamera == null)
+            return;
+
+        // 1) Eye pass debug (optional each iteration; you can keep it only on view change if you want)
+        RefreshEyeDebug(_debugBuffers.Width, _debugBuffers.Height, _lastCamera, _lastScene);
+
+        // 2) Photon pass
+        var stats = new PhotonTraceStats();
+        var photons = PhotonTracer.TracePhotonPass(
+            scene: _lastScene,
+            photonsPerPass: 1_000_000,      // relaxed time constraints; tweak later
+            maxDepth: 12,
+            baseSeed: 12345,
+            iterationIndex: _sppmIteration++,
+            stats: stats);
+
+        // 3) Fill photon debug images
+        lock (_debugLock)
+        {
+            PhotonDebugImages.FillPhotonMapsXZ(
+                _lastScene,
+                photons,
+                _debugBuffers);
+        }
+
+        // 4) Update stats text (optional)
+        _ui.Post(_ =>
+        {
+            StatsText =
+                $"SPPM 12.1 Photon Pass\n" +
+                $"Photons requested: {stats.PhotonsRequested}\n" +
+                $"Photons emitted:   {stats.PhotonsEmitted}\n" +
+                $"Photons stored:    {stats.PhotonsStored} (Lambertian only)\n" +
+                $"Avg path length:   {stats.AvgPathLength:0.00}\n" +
+                $"RR terminated:     {stats.PathsTerminatedRR}\n" +
+                $"MaxDepth term:     {stats.PathsTerminatedMaxDepth}\n";
+        }, null);
+
+        // 5) Force repaint (your proven approach)
+        PostTileUpdate(0, 0, _debugBuffers.Width, _debugBuffers.Height);
+    }
+
     private void PostStats(RenderProgress p)
     {
         var sb = new StringBuilder();
@@ -344,6 +410,8 @@ return Scene.CornellSimple(thinLens: false);
             "Albedo" => _debugBuffers.Get(DebugBufferId.Albedo),
             "VisiblePointMask" => _debugBuffers.Get(DebugBufferId.VisiblePointMask),
             "Throughput" => _debugBuffers.Get(DebugBufferId.Throughput),
+            "PhotonHitMapXZ" => _debugBuffers!.Get(DebugBufferId.PhotonHitMapXZ),
+            "PhotonFluxMapXZ" => _debugBuffers!.Get(DebugBufferId.PhotonFluxMapXZ),
             "Radius" => _debugBuffers.Get(DebugBufferId.Radius),
             "PhotonCountN" => _debugBuffers.Get(DebugBufferId.PhotonCountN),
             "PhotonCountM" => _debugBuffers.Get(DebugBufferId.PhotonCountM),

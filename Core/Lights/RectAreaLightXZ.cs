@@ -6,12 +6,22 @@ namespace Core.Lights;
 /// <summary>
 /// Uniformly-sampled rectangular area light aligned with the XZ plane at y=k.
 /// </summary>
-public sealed class RectAreaLightXZ : ILight
+public sealed class RectAreaLightXZ : ILight, IPhotonEmitter
 {
     private readonly float _x0, _x1, _z0, _z1, _k;
     private readonly Vec3 _normal; // should point outward from emitting side
     private readonly Vec3 _radiance;
     private readonly float _area;
+
+    public Vec3 Power
+    {
+        get
+        {
+            float area = float.Abs((_x1 - _x0) * (_z1 - _z0));
+            // Lambertian emitter: total power = L * area * pi
+            return _radiance * (area * MathUtil.Pi);
+        }
+    }
 
     public RectAreaLightXZ(float x0, float x1, float z0, float z1, float k, in Vec3 normal, in Vec3 radiance)
     {
@@ -68,5 +78,24 @@ public sealed class RectAreaLightXZ : ILight
         // dist^2 = t^2 * |wi|^2. If wi is normalized then dist=t.
         float dist2 = (referencePoint - new Vec3(x, _k, z)).LengthSquared();
         return dist2 / (cosLight * _area);
+    }
+
+    public void EmitPhoton(Sampler sampler, out Ray ray, out Vec3 flux)
+    {
+        // Uniform position on rectangle
+        float u1 = sampler.Next1D();
+        float u2 = sampler.Next1D();
+        float x = MathUtil.Lerp(_x0, _x1, u1);
+        float z = MathUtil.Lerp(_z0, _z1, u2);
+        var pos = new Vec3(x, _k, z);
+
+        // Cosine-weighted direction around normal
+        Vec3 local = SamplingUtil.CosineSampleHemisphere(sampler.Next1D(), sampler.Next1D());
+        Vec3 dir = SamplingUtil.ToWorld(local, _normal);
+
+        ray = new Ray(pos, dir, time: 0f);
+
+        // flux per photon will be set by the photon tracer based on Power and selection probability.
+        flux = Vec3.One; // placeholder; PhotonTracer will override
     }
 }

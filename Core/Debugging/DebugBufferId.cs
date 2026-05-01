@@ -8,6 +8,9 @@ public enum DebugBufferId
     Albedo,
     VisiblePointMask,
     Throughput,
+    PhotonHitMapXZ,
+    PhotonFluxMapXZ,
+    // Placeholder below this
     Radius,
     PhotonCountN,
     PhotonCountM,

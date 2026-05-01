@@ -21,6 +21,10 @@ public sealed class DebugBufferSet
         Allocate(DebugBufferId.VisiblePointMask);
         Allocate(DebugBufferId.Throughput);
 
+        // For photon mapping
+        Allocate(DebugBufferId.PhotonHitMapXZ);
+        Allocate(DebugBufferId.PhotonFluxMapXZ);
+
         // Placeholders (allocated now so UI can always show them)
         Allocate(DebugBufferId.Radius);
         Allocate(DebugBufferId.PhotonCountN);
