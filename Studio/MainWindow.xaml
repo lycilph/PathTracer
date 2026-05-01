@@ -39,11 +39,6 @@
                     <ProgressBar IsIndeterminate="{Binding ProgressIndeterminate}" Value="{Binding ProgressPercentage}"/>
                 </DockPanel>
 
-                <!--<StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                    <Button Content="Start" Width="100" Margin="0,0,8,0" Command="{Binding StartRenderCommand}"/>
-                    <Button Content="Stop" Width="100" Command="{Binding StartRenderCancelCommand}"/>
-                </StackPanel>-->
-
                 <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
                     <TextBlock Text="Resolution" Width="80" VerticalAlignment="Center"/>
                     <TextBox Text="{Binding WidthInput}" Width="80" Margin="0,0,8,0"/>

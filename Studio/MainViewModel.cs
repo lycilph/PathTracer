@@ -3,17 +3,16 @@ using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Core.Camera;
-using Core.Lights;
-using Core.Materials;
-using Core.Math;
 using Core.Rendering;
 using Core.Scene;
+using Scripting;
 
 namespace Studio;
 
 public partial class MainViewModel : ObservableObject
 {
     private readonly SynchronizationContext _ui;
+    private readonly ISceneScriptEngine _scriptEngine = new RoslynSceneScriptEngine();
 
     //private CancellationTokenSource? _externalCts; // optional: if you also want manual CTS control
 
@@ -31,10 +30,12 @@ public partial class MainViewModel : ObservableObject
         ThreadsInput = "";
 
         SceneScript =
-@"scene: CornellMaterialsShowcase
-camera: pinhole
-notes:
-- Later we will make this a real script. For now, these lines select built-in options.";
+@"// Return a SceneDefinition.
+// Globals: Width, Height, Scene (SceneApi)
+return Scene.CornellSimple(thinLens: false);
+//return Scene.CornellDefault(tintedGlass: true);
+//return Scene.DOFDefault(thinLens: false);
+//return Scene.MotionBlurDefault(thinLens: false);";
 
         StatusText = "Idle";
         StatsText = "";
@@ -90,7 +91,12 @@ notes:
         // Set RenderImage on UI thread before we start background work
         RenderImage = _presenter.Bitmap;
 
-        var (scene, camera) = BuildSceneFromScript(width, height);
+
+        var built = await TryBuildSceneFromScriptAsync(width, height, token);
+        if (built is null) return;
+
+        var (scene, camera) = built.Value;
+
 
         try
         {
@@ -166,65 +172,34 @@ notes:
         }, null);
     }
 
-    private (Scene scene, ICamera camera) BuildSceneFromScript(int width, int height)
+
+    private async Task<(Scene scene, ICamera camera)?> TryBuildSceneFromScriptAsync(int width, int height, CancellationToken token)
     {
-        string sceneName = "CornellMaterialsShowcase";
-        string cameraName = "pinhole";
+        var compile = _scriptEngine.TryCompile(SceneScript);
 
-        foreach (var raw in SceneScript.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None))
+        if (!compile.Success)
         {
-            var line = raw.Trim();
-            if (string.IsNullOrWhiteSpace(line)) continue;
-
-            if (line.StartsWith("scene:", StringComparison.OrdinalIgnoreCase))
-                sceneName = line.Substring("scene:".Length).Trim();
-            else if (line.StartsWith("camera:", StringComparison.OrdinalIgnoreCase))
-                cameraName = line.Substring("camera:".Length).Trim();
-
-            if (sceneName.Length > 0 && cameraName.Length > 0) break;
+            StatsText = (compile.ErrorText ?? "Compilation failed") + Environment.NewLine
+                        + string.Join(Environment.NewLine, compile.Diagnostics);
+            StatusText = "Script error";
+            return null;
         }
 
-        // Minimal built-in scene (keep it simple for milestone start)
-        float aspect = (float)width / height;
+        // Optional: show warnings/info in stats
+        if (compile.Diagnostics.Count > 0)
+            StatsText = string.Join(Environment.NewLine, compile.Diagnostics);
 
-        var red = new Lambertian(new Vec3(0.65f, 0.05f, 0.05f));
-        var green = new Lambertian(new Vec3(0.12f, 0.45f, 0.15f));
-        var white = new Lambertian(new Vec3(0.73f, 0.73f, 0.73f));
-        var lightRadiance = new Vec3(15f, 15f, 15f);
-        var lightMat = new DiffuseLight(lightRadiance);
-
-        var list = new HittableList();
-        list.Add(new YZRect(0, 555, 0, 555, 555, green));
-        list.Add(new YZRect(0, 555, 0, 555, 0, red));
-        list.Add(new XZRect(0, 555, 0, 555, 0, white));
-        list.Add(new XZRect(0, 555, 0, 555, 555, white));
-        list.Add(new XYRect(0, 555, 0, 555, 555, white));
-        list.Add(new FlipFace(new XZRect(213, 343, 227, 332, 554, lightMat)));
-
-        var metal = new MicrofacetMetal(new Vec3(0.95f, 0.93f, 0.88f), roughness: 0.25f);
-        var glass = new Dielectric(ior: 1.5f);
-        list.Add(new Sphere(new Vec3(190f, 90f, 190f), 90f, metal));
-        list.Add(new Sphere(new Vec3(370f, 90f, 370f), 90f, glass));
-
-        var world = new BvhNode(list.Objects);
-
-        var lights = new List<ILight>
+        try
         {
-            new RectAreaLightXZ(213, 343, 227, 332, 554, normal: -Vec3.UnitY, radiance: lightRadiance)
-        };
-
-        var scene = new Scene(world, lights);
-
-        var lookFrom = new Vec3(278f, 278f, -800f);
-        var lookAt = new Vec3(278f, 278f, 0f);
-
-        ICamera camera =
-            string.Equals(cameraName, "thinlens", StringComparison.OrdinalIgnoreCase)
-                ? new ThinLensCamera(40f, aspect, lookFrom, lookAt, Vec3.UnitY,
-                    focusDistance: (lookAt - lookFrom).Length(), apertureRadius: 0.2f)
-                : new PinholeCamera(40f, aspect, lookFrom, lookAt, Vec3.UnitY);
-
-        return (scene, camera);
+            var def = await _scriptEngine.ExecuteAsync(SceneScript, width, height, token);
+            return (def.Scene, def.Camera);
+        }
+        catch (Exception ex)
+        {
+            StatsText = ex.ToString();
+            StatusText = "Script runtime error";
+            return null;
+        }
     }
 
     private static int ParseInt(string s, int fallback)
