@@ -51,12 +51,20 @@
                     <TextBlock Text="(0 = infinite)" VerticalAlignment="Center"/>
                 </StackPanel>
 
-                <StackPanel Orientation="Horizontal">
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
                     <TextBlock Text="Tile Size" Width="80" VerticalAlignment="Center"/>
                     <TextBox Text="{Binding TileSizeInput}" Width="80" Margin="0,0,8,0"/>
                     <TextBlock Text="Threads" Width="60" VerticalAlignment="Center"/>
                     <TextBox Text="{Binding ThreadsInput}" Width="80"/>
                 </StackPanel>
+
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="View" Width="80" VerticalAlignment="Center"/>
+                    <ComboBox Width="220"
+                              ItemsSource="{Binding DebugBufferNames}"
+                              SelectedItem="{Binding SelectedDebugBuffer, Mode=TwoWay}" />
+                </StackPanel>
+
             </StackPanel>
 
             <!-- Stats -->

@@ -4,6 +4,8 @@ using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Core.Camera;
+using Core.Debugging;
+using Core.Math;
 using Core.Rendering;
 using Core.Scene;
 using Scripting;
@@ -15,13 +17,18 @@ public partial class MainViewModel : ObservableObject
     private readonly SynchronizationContext _ui;
     private readonly ISceneScriptEngine _scriptEngine = new RoslynSceneScriptEngine();
 
-    //private CancellationTokenSource? _externalCts; // optional: if you also want manual CTS control
-
     private WriteableBitmapPresenter? _presenter;
     private AccumulationBuffer? _accum;
 
     private CancellationTokenSource? _compileDebounceCts;
-    
+
+    private DebugBufferSet? _debugBuffers;
+    private int _debugIteration;
+    private float _depthInvMax = 1f;
+    private readonly object _debugLock = new();
+    private ICamera? _lastCamera;
+    private Scene? _lastScene;
+
     public event Action<int, int>? GoToRequested; // (line, column)
 
     public MainViewModel()
@@ -29,8 +36,8 @@ public partial class MainViewModel : ObservableObject
         // Capture UI context for marshaling updates without referencing Application.Current in core logic.
         _ui = SynchronizationContext.Current ?? new SynchronizationContext();
 
-        WidthInput = "640";
-        HeightInput = "360";
+        WidthInput = "400";
+        HeightInput = "400";
         TileSizeInput = "16";
         ThreadsInput = "";
 
@@ -51,8 +58,8 @@ return Scene.CornellSimple(thinLens: false);
     [ObservableProperty] private string statsText = "";
     [ObservableProperty] private string statusText = "";
 
-    [ObservableProperty] private string widthInput = "640";
-    [ObservableProperty] private string heightInput = "360";
+    [ObservableProperty] private string widthInput = "400";
+    [ObservableProperty] private string heightInput = "400";
     [ObservableProperty] private string targetSppInput = "256";
     [ObservableProperty] private string tileSizeInput = "16";
     [ObservableProperty] private string threadsInput = "";
@@ -61,6 +68,21 @@ return Scene.CornellSimple(thinLens: false);
     [ObservableProperty] private int progressPercentage = 0;
     [ObservableProperty] private bool progressIndeterminate = false;
 
+
+    [ObservableProperty] private string selectedDebugBuffer = "Beauty";
+    public string[] DebugBufferNames { get; } =
+    {
+        "Beauty",
+        "Depth",
+        "Normal",
+        "Albedo",
+        "VisiblePointMask",
+        "Throughput",
+        "Radius",
+        "PhotonCountN",
+        "PhotonCountM",
+        "IndirectPhoton"
+    };
 
     [ObservableProperty]
     private ObservableCollection<ScriptDiagnosticItem> scriptDiagnostics = [];
@@ -89,6 +111,14 @@ return Scene.CornellSimple(thinLens: false);
             }
             catch (OperationCanceledException) { }
         });
+    }
+
+    partial void OnSelectedDebugBufferChanged(string value)
+    {
+        if (value != "Beauty" && _debugBuffers != null && _lastScene != null && _lastCamera != null)
+        {
+            RefreshEyeDebug(_debugBuffers.Width, _debugBuffers.Height, _lastCamera, _lastScene);
+        }
     }
 
     [RelayCommand]
@@ -129,12 +159,21 @@ return Scene.CornellSimple(thinLens: false);
         if (built is null) return;
 
         var (scene, camera) = built.Value;
+        _lastCamera = camera;
+        _lastScene = scene;
 
         try
         {
             // Important: move the long-running progressive loop off the UI thread
             await Task.Run(async () =>
             {
+                _debugBuffers = new DebugBufferSet(width, height);
+                _debugIteration = 0;
+                _depthInvMax = 1f;
+
+                // Fill debug buffers once initially
+                RefreshEyeDebug(width, height, camera, scene);
+
                 await ProgressiveRenderer.RenderLoopAsync(
                     width: width,
                     height: height,
@@ -198,12 +237,40 @@ return Scene.CornellSimple(thinLens: false);
     {
         if (_accum is null || _presenter is null) return;
 
+
         _ui.Post(_ =>
         {
-            _presenter.UpdateTile(_accum, x0, y0, w, h);
+            if (SelectedDebugBuffer == "Beauty")
+            {
+                _presenter!.UpdateTile(_accum!, x0, y0, w, h);
+            }
+            else
+            {
+                lock (_debugLock)
+                {
+                    var buf = GetActiveDebugBuffer();
+                    var width = _debugBuffers!.Width;
+                    var height = _debugBuffers!.Height;
+
+                    Func<Vec3, Vec3>? transform = null;
+                    if (SelectedDebugBuffer == "Depth")
+                    {
+                        float invMax;
+                        lock (_debugLock) invMax = _depthInvMax;
+
+                        transform = v =>
+                        {
+                            float d = 1f - MathUtil.Clamp(v.X * invMax, 0f, 1f); // closer = brighter
+                            return new Vec3(d, d, d);
+                        };
+                    }
+
+                    _presenter!.UpdateTileFromRawRgb(buf, width, height, x0, y0, w, h, transform: transform);
+                }
+
+            }
         }, null);
     }
-
 
     private async Task<(Scene scene, ICamera camera)?> TryBuildSceneFromScriptAsync(int width, int height, CancellationToken token)
     {
@@ -261,44 +328,52 @@ return Scene.CornellSimple(thinLens: false);
         }, null);
     }
 
-
-    private static bool TryParseDiagnostic(string text, out ScriptDiagnosticItem item)
+    private Vec3[] GetActiveDebugBuffer()
     {
-        item = new ScriptDiagnosticItem();
+        if (_debugBuffers is null)
+            throw new InvalidOperationException("Debug buffers not initialized.");
 
-        int p1 = text.IndexOf(' ');
-        if (p1 < 0) return false;
-
-        string severity = text.Substring(0, p1).Trim();
-
-        int p2 = text.IndexOf(' ', p1 + 1);
-        if (p2 < 0) return false;
-
-        string id = text.Substring(p1 + 1, p2 - (p1 + 1)).Trim();
-
-        int lp = text.IndexOf('(', p2 + 1);
-        int rp = text.IndexOf(')', lp + 1);
-        if (lp < 0 || rp < 0) return false;
-
-        string loc = text.Substring(lp + 1, rp - lp - 1); // "line,col"
-        var parts = loc.Split(',');
-        if (parts.Length != 2) return false;
-
-        if (!int.TryParse(parts[0], out int line)) return false;
-        if (!int.TryParse(parts[1], out int col)) return false;
-
-        int colon = text.IndexOf(':', rp + 1);
-        string msg = colon >= 0 ? text.Substring(colon + 1).Trim() : "";
-
-        item = new ScriptDiagnosticItem
+        return SelectedDebugBuffer switch
         {
-            Severity = severity,
-            Id = id,
-            Line = line,
-            Column = col,
-            Message = msg
+            "Beauty" => null!, // handled separately (beauty comes from accumulation)
+            "Depth" => _debugBuffers.Get(DebugBufferId.Depth),
+            "Normal" => _debugBuffers.Get(DebugBufferId.Normal),
+            "Albedo" => _debugBuffers.Get(DebugBufferId.Albedo),
+            "VisiblePointMask" => _debugBuffers.Get(DebugBufferId.VisiblePointMask),
+            "Throughput" => _debugBuffers.Get(DebugBufferId.Throughput),
+            "Radius" => _debugBuffers.Get(DebugBufferId.Radius),
+            "PhotonCountN" => _debugBuffers.Get(DebugBufferId.PhotonCountN),
+            "PhotonCountM" => _debugBuffers.Get(DebugBufferId.PhotonCountM),
+            "IndirectPhoton" => _debugBuffers.Get(DebugBufferId.IndirectPhoton),
+            _ => null!
         };
+    }
 
-        return true;
+    private void RefreshEyeDebug(int width, int height, ICamera camera, Scene scene)
+    {
+        if (_debugBuffers is null) return;
+
+        lock (_debugLock)
+        {
+            EyePassDebugger.Fill(width, height, camera, scene, _debugBuffers!, baseSeed: 999, iterationIndex: _debugIteration++);
+
+            _depthInvMax = ComputeDepthInvMax(_debugBuffers);
+        }
+    }
+
+    private static float ComputeDepthInvMax(DebugBufferSet dbg)
+    {
+        var depth = dbg.Get(DebugBufferId.Depth);
+
+        float max = 0f;
+        for (int i = 0; i < depth.Length; i++)
+        {
+            float d = depth[i].X;
+            if (d > max && d < 1e30f) // ignore absurd values just in case
+                max = d;
+        }
+
+        if (max <= 1e-6f) max = 1f;
+        return 1f / max;
     }
 }

@@ -14,6 +14,7 @@
     <None Include="$(MSBuildThisFileDirectory)golden-images.md" />
     <None Include="$(MSBuildThisFileDirectory)milestone-0-foundation.md" />
     <None Include="$(MSBuildThisFileDirectory)milestone-1-rays-camera-spheres.md" />
+    <None Include="$(MSBuildThisFileDirectory)milestone-12.0-sppm-debug-infra.md" />
     <None Include="$(MSBuildThisFileDirectory)milestone-2-diffuse-path-tracing.md" />
     <None Include="$(MSBuildThisFileDirectory)milestone-3-emission-cornell.md" />
     <None Include="$(MSBuildThisFileDirectory)milestone-4-nee-mis.md" />
