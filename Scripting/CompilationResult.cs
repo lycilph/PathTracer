@@ -3,4 +3,4 @@
 public sealed record CompilationResult(
     bool Success,
     string? ErrorText,
-    IReadOnlyList<string> Diagnostics);
+    IReadOnlyList<ScriptDiagnostic> Diagnostics);

@@ -237,24 +237,22 @@ return Scene.CornellSimple(thinLens: false);
     private static int ParseInt(string s, int fallback)
         => int.TryParse(s, out var v) ? v : fallback;
 
-
     private void CompileScriptForDiagnostics(string code)
     {
         var result = _scriptEngine.TryCompile(code);
 
-        var items = new List<ScriptDiagnosticItem>();
-
-        foreach (var d in result.Diagnostics)
+        var items = result.Diagnostics.Select(d => new ScriptDiagnosticItem
         {
-            // Expected format: "Severity ID (line,col): message"
-            // Example: "Error CS1002 (12,5): ; expected"
-            if (!TryParseDiagnostic(d, out var item))
-                continue;
+            Severity = d.Severity.ToString(),
+            Id = d.Id,
+            Line = d.Line,
+            Column = d.Column,
+            Message = d.Message,
 
-            items.Add(item);
-        }
+            StartOffset = d.SpanStart,
+            Length = d.SpanLength
+        }).ToList();
 
-        // Update UI collection on UI thread
         _ui.Post(_ =>
         {
             ScriptDiagnostics.Clear();
@@ -262,6 +260,7 @@ return Scene.CornellSimple(thinLens: false);
                 ScriptDiagnostics.Add(it);
         }, null);
     }
+
 
     private static bool TryParseDiagnostic(string text, out ScriptDiagnosticItem item)
     {

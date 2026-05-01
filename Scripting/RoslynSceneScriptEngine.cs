@@ -43,6 +43,7 @@ public sealed class RoslynSceneScriptEngine : ISceneScriptEngine
                 "Core.Lights");
     }
 
+
     public CompilationResult TryCompile(string code)
     {
         try
@@ -53,12 +54,16 @@ public sealed class RoslynSceneScriptEngine : ISceneScriptEngine
                 globalsType: typeof(ScriptGlobals));
 
             var diagnostics = script.Compile();
+
             var diags = diagnostics
                 .Where(d => d.Severity >= DiagnosticSeverity.Info)
-                .Select(FormatDiagnostic)
+                .Select(ToScriptDiagnostic)
+                .Where(d => d is not null)
+                .Select(d => d!)
                 .ToList();
 
             bool success = !diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error);
+
             return new CompilationResult(
                 Success: success,
                 ErrorText: success ? null : "Script has compilation errors.",
@@ -66,8 +71,31 @@ public sealed class RoslynSceneScriptEngine : ISceneScriptEngine
         }
         catch (Exception ex)
         {
-            return new CompilationResult(false, ex.ToString(), Array.Empty<string>());
+            return new CompilationResult(false, ex.ToString(), Array.Empty<ScriptDiagnostic>());
         }
+    }
+
+    private static ScriptDiagnostic? ToScriptDiagnostic(Diagnostic d)
+    {
+        // Some diagnostics might not be in source (e.g., metadata/reference issues).
+        // For squiggles we only want in-source spans.
+        if (!d.Location.IsInSource)
+            return null;
+
+        var span = d.Location.SourceSpan;           // start+length in the script text
+        var lineSpan = d.Location.GetLineSpan();    // line/col info
+
+        int line = lineSpan.StartLinePosition.Line + 1;
+        int col = lineSpan.StartLinePosition.Character + 1;
+
+        return new ScriptDiagnostic(
+            Id: d.Id,
+            Severity: d.Severity,
+            Message: d.GetMessage(),
+            SpanStart: span.Start,
+            SpanLength: span.Length,
+            Line: line,
+            Column: col);
     }
 
     public async Task<SceneDefinition> ExecuteAsync(string code, int width, int height, CancellationToken token)

@@ -156,63 +156,38 @@ public partial class SceneScriptEditor : UserControl
 
         var diags = Diagnostics ?? Array.Empty<ScriptDiagnosticItem>();
 
+        int textLength = Editor.Document.TextLength;
+
         foreach (var diag in diags)
         {
-            // Only draw squiggles for errors (you can include warnings too if you want)
+            // Underline errors and warnings
             if (!(string.Equals(diag.Severity, "Error", StringComparison.OrdinalIgnoreCase) ||
-                  string.Equals(diag.Severity, "Warning", StringComparison.OrdinalIgnoreCase)))
+                 string.Equals(diag.Severity, "Warning", StringComparison.OrdinalIgnoreCase)))
                 continue;
 
             var color = diag.Severity.Equals("Warning", StringComparison.OrdinalIgnoreCase) ? Colors.Goldenrod : Colors.Red;
 
-            // Map (line,col) -> document offset
-            // AvalonEdit uses offsets as indices into TextDocument; GetOffset maps (line,column) to offset. [5](https://danielgrunwald.de/coding/AvalonEdit/document.php)[4](http://avalonedit.net/documentation/html/756feb0b-9e70-0fd8-eb8e-686484941410.htm)
-            int line = Math.Max(1, diag.Line);
-            int col = Math.Max(1, diag.Column);
+            int start = diag.StartOffset;
+            int len = diag.Length;
 
-            int offset;
-            try
-            {
-                offset = Editor.Document.GetOffset(line, col);
-            }
-            catch
-            {
-                // Out of range line/column; skip
+            // Clamp to document bounds (robust against any mismatch)
+            if (start < 0 || start > textLength)
                 continue;
-            }
 
-            int length = GuessTokenLength(Editor.Document, offset);
-            if (length <= 0) length = 1;
+            if (len <= 0)
+                len = 1;
+
+            if (start + len > textLength)
+                len = textLength - start;
 
             _markerService.Create(
-                startOffset: offset,
-                length: length,
+                startOffset: start,
+                length: len,
                 color: color,
                 toolTip: diag.Display);
         }
 
-        // Force redraw because squiggles are external data to the renderer. [1](http://avalonedit.net/documentation/html/c06e9832-9ef0-4d65-ac2e-11f7ce9c7774.htm)[6](https://www.danielgrunwald.de/coding/AvalonEdit/rendering.php)
+        // Markers are external rendering data; invalidate cached visual lines. [6](https://libraries.io/nuget/CommunityToolkit.Mvvm)[7](https://www.nuget.org/packages/CommunityToolkit.Mvvm/)
         Editor.TextArea.TextView.Redraw();
-    }
-
-    private static int GuessTokenLength(TextDocument doc, int offset)
-    {
-        // Simple heuristic: underline until whitespace or common delimiter.
-        // This avoids squiggling just a single character most of the time.
-        const string stops = " \t\r\n;,.(){}[]<>:+-*/=!&|^%\"'";
-
-        int max = doc.TextLength;
-        if (offset < 0 || offset >= max) return 0;
-
-        int i = offset;
-        while (i < max)
-        {
-            char c = doc.GetCharAt(i);
-            if (stops.IndexOf(c) >= 0)
-                break;
-            i++;
-        }
-
-        return Math.Max(1, i - offset);
     }
 }
