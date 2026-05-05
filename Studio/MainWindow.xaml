@@ -63,13 +63,6 @@
                     <TextBox Text="{Binding ThreadsInput}" Width="80"/>
                 </StackPanel>
 
-                <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                    <TextBlock Text="Photons/pass" Width="80" VerticalAlignment="Center"/>
-                    <TextBox Text="{Binding PhotonsPerPassInput}" Width="120" Margin="0,0,8,0"/>
-                    <TextBlock Text="Max depth" Width="70" VerticalAlignment="Center"/>
-                    <TextBox Text="{Binding PhotonMaxDepthInput}" Width="60"/>
-                </StackPanel>
-
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="View" Width="80" VerticalAlignment="Center"/>
                     <ComboBox Width="220"
@@ -77,7 +70,48 @@
                               SelectedItem="{Binding SelectedDebugBuffer, Mode=TwoWay}" />
                 </StackPanel>
 
+                <Expander Header="SPPM Settings" IsExpanded="True" Margin="0,0,0,12">
+                    <Border BorderBrush="#444" BorderThickness="1" CornerRadius="4" Padding="8" Margin="0,6,0,0">
+                        <StackPanel>
+
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                <TextBlock Text="Photons/pass" Width="110" VerticalAlignment="Center"/>
+                                <TextBox Width="140"
+             Text="{Binding Sppm.PhotonsPerPass, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                <TextBlock Text="Photon max depth" Width="110" VerticalAlignment="Center"/>
+                                <TextBox Width="140"
+             Text="{Binding Sppm.PhotonMaxDepth, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+
+                            <!-- Future toggles/inputs (safe to keep visible or comment out for now) -->
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                <TextBlock Text="Alpha" Width="110" VerticalAlignment="Center"/>
+                                <TextBox Width="140"
+             Text="{Binding Sppm.Alpha, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                <TextBlock Text="Initial radius" Width="110" VerticalAlignment="Center"/>
+                                <TextBox Width="140"
+             Text="{Binding Sppm.InitialRadius, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="Max iterations" Width="110" VerticalAlignment="Center"/>
+                                <TextBox Width="140"
+             Text="{Binding Sppm.MaxIterations, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Text="0 = infinite" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                            </StackPanel>
+
+                        </StackPanel>
+                    </Border>
+                </Expander>
+
             </StackPanel>
+
 
             <!-- Stats -->
             <Border Grid.Row="1" BorderBrush="#444" BorderThickness="1" CornerRadius="4" Padding="8" Margin="0,0,0,12">

@@ -31,6 +31,7 @@ public partial class MainViewModel : ObservableObject
     private ICamera? _lastCamera;
     private Scene? _lastScene;
 
+    public SppmSettingsViewModel Sppm { get; } = new();
 
     public event Action<int, int>? GoToRequested; // (line, column)
 
@@ -67,9 +68,6 @@ return Scene.CornellSimple(thinLens: false);
     [ObservableProperty] private string tileSizeInput = "16";
     [ObservableProperty] private string threadsInput = "";
     [ObservableProperty] private string sceneScript = "";
-
-    [ObservableProperty] private string photonsPerPassInput = "500000";
-    [ObservableProperty] private string photonMaxDepthInput = "12";
 
     [ObservableProperty] private int progressPercentage = 0;
     [ObservableProperty] private bool progressIndeterminate = false;
@@ -239,19 +237,6 @@ return Scene.CornellSimple(thinLens: false);
         StatusText = "Stopped";
     }
 
-    private int GetPhotonsPerPass()
-    {
-        // 1M default, clamp to avoid accidental “1000000000”
-        int v = ParseInt(PhotonsPerPassInput, 1_000_000);
-        return Math.Clamp(v, 1_000, 50_000_000);
-    }
-
-    private int GetPhotonMaxDepth()
-    {
-        int v = ParseInt(PhotonMaxDepthInput, 12);
-        return Math.Clamp(v, 1, 64);
-    }
-
     private void RunPhotonDebugIteration()
     {
         if (_debugBuffers == null || _lastScene == null || _lastCamera == null)
@@ -260,8 +245,8 @@ return Scene.CornellSimple(thinLens: false);
         // 1) Eye pass debug (optional each iteration; you can keep it only on view change if you want)
         RefreshEyeDebug(_debugBuffers.Width, _debugBuffers.Height, _lastCamera, _lastScene);
 
-        int photonsPerPass = GetPhotonsPerPass();
-        int photonMaxDepth = GetPhotonMaxDepth();
+        int photonsPerPass = Sppm.GetPhotonsPerPass();
+        int photonMaxDepth = Sppm.GetPhotonMaxDepth();
 
         // 2) Photon pass
         var stats = new PhotonTraceStats();
