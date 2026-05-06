@@ -1,6 +1,7 @@
 ﻿using Core.Camera;
 using Core.Materials;
 using Core.Math;
+using Core.PhotonMapping.Sppm;
 using Core.Random;
 using Core.Sampling;
 
@@ -62,5 +63,67 @@ public static class EyePassDebugger
                 dbg.SetPixel(DebugBufferId.Throughput, x, y, new Vec3(lum, lum, lum));
             }
         }
+    }
+
+    public static VisiblePoint? TryCreateVisiblePoint(
+        int x, int y,
+        int width, int height,
+        ICamera camera,
+        Scene.Scene scene,
+        ulong baseSeed,
+        int iterationIndex,
+        out bool isLambertian)
+    {
+        ulong seed = SeedHash.PixelSampleSeed(x, y, iterationIndex, baseSeed);
+        var rng = new Pcg32(seed);
+        var sampler = new Sampler(rng);
+
+        float u = (x + sampler.Next1D()) / width;
+        float v = (y + sampler.Next1D()) / height;
+
+        var ray = camera.GetRay(u, 1f - v, sampler);
+        Vec3 beta = Vec3.One;
+        Ray r = ray;
+
+        for (int depth = 0; depth < 12; depth++)
+        {
+            if (!scene.World.Hit(r, 0.001f, float.PositiveInfinity, out var hit))
+            {
+                isLambertian = false;
+                return null;
+            }
+
+            if (hit.Material.IsDelta)
+            {
+                Vec3 wo = (-r.Direction).Normalized();
+                if (!hit.Material.Sample(wo, hit, sampler, out var wi, out var pdf, out var f))
+                    break;
+
+                float absCos = float.Abs(Vec3.Dot(wi, hit.Normal));
+                beta = Vec3.Hadamard(beta, f) * (absCos / pdf);
+                r = new Ray(hit.Point, wi, r.Time);
+                continue;
+            }
+
+            if (hit.Material is Lambertian lam)
+            {
+                isLambertian = true;
+                return new VisiblePoint
+                {
+                    PixelX = x,
+                    PixelY = y,
+                    Position = hit.Point,
+                    Normal = hit.Normal.Normalized(),
+                    Beta = beta,
+                    Material = lam
+                };
+            }
+
+            isLambertian = false;
+            return null;
+        }
+
+        isLambertian = false;
+        return null;
     }
 }

@@ -20,10 +20,12 @@ public sealed class VisiblePoint
 
     public Lambertian Material { get; init; } = null!;
 
-    // Search radius for gathering photons (fixed in 12.2)
-    public float Radius { get; set; }
+    // --- Progressive SPPM state ---
+    public float Radius;     // R_i
+    public float N;          // accumulated photon count
+    public Vec3 Tau;         // accumulated flux τ_i
 
-    // Iteration-local accumulators (reset each iteration)
-    public int M;          // number of photons found this iteration
-    public Vec3 Phi;       // accumulated flux contribution (for photon-only estimate/debug)
+    // --- Iteration-local (reset every iteration) ---
+    public int M;            // photons this iteration
+    public Vec3 Phi;         // flux this iteration
 }

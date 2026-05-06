@@ -222,127 +222,201 @@ return Scene.CornellSimple(thinLens: false);
         }
     }
 
+    //[RelayCommand(IncludeCancelCommand = true)]
+    //private async Task StartSppmDebugAsync(CancellationToken token)
+    //{
+    //    StatusText = "SPPM (Photon Debug) running...";
+
+    //    await Task.Run(() =>
+    //    {
+    //        while (!token.IsCancellationRequested)
+    //        {
+    //            RunPhotonDebugIteration();
+    //        }
+    //    }, token);
+
+    //    StatusText = "Stopped";
+    //}
+
+    //private void RunPhotonDebugIteration()
+    //{
+    //    if (_debugBuffers == null || _lastScene == null || _lastCamera == null)
+    //        return;
+
+    //    // 1) Eye pass debug (optional each iteration; you can keep it only on view change if you want)
+    //    RefreshEyeDebug(_debugBuffers.Width, _debugBuffers.Height, _lastCamera, _lastScene);
+
+    //    int photonsPerPass = Sppm.GetPhotonsPerPass();
+    //    int photonMaxDepth = Sppm.GetPhotonMaxDepth();
+
+    //    // 2) Photon pass
+    //    var stats = new PhotonTraceStats();
+    //    var photons = PhotonTracer.TracePhotonPass(
+    //        scene: _lastScene,
+    //        photonsPerPass: photonsPerPass,      // relaxed time constraints; tweak later
+    //        maxDepth: photonMaxDepth,
+    //        baseSeed: 12345,
+    //        iterationIndex: _sppmIteration++,
+    //        stats: stats);
+
+    //    // 3) Fill photon debug images
+    //    lock (_debugLock)
+    //    {
+    //        PhotonDebugImages.FillPhotonMapsXZ(
+    //            _lastScene,
+    //            photons,
+    //            _debugBuffers);
+    //    }
+
+    //    // 4) Update stats text (optional)
+    //    _ui.Post(_ =>
+    //    {
+    //        StatsText =
+    //            $"SPPM 12.1 Photon Pass\n" +
+    //            $"Photons/pass:      {photonsPerPass}\n" +
+    //            $"Photon max depth:  {photonMaxDepth}\n" +
+    //            $"Photons requested: {stats.PhotonsRequested}\n" +
+    //            $"Photons emitted:   {stats.PhotonsEmitted}\n" +
+    //            $"Photons stored:    {stats.PhotonsStored} (Lambertian only)\n" +
+    //            $"Avg path length:   {stats.AvgPathLength:0.00}\n" +
+    //            $"RR terminated:     {stats.PathsTerminatedRR}\n" +
+    //            $"MaxDepth term:     {stats.PathsTerminatedMaxDepth}\n";
+    //    }, null);
+
+    //    // 5) Force repaint (your proven approach)
+    //    PostTileUpdate(0, 0, _debugBuffers.Width, _debugBuffers.Height);
+    //}
+
     [RelayCommand(IncludeCancelCommand = true)]
-    private async Task StartSppmDebugAsync(CancellationToken token)
+    private async Task StartSppmRenderAsync(CancellationToken token)
     {
-        StatusText = "SPPM (Photon Debug) running...";
-
-        await Task.Run(() =>
-        {
-            while (!token.IsCancellationRequested)
-            {
-                RunPhotonDebugIteration();
-            }
-        }, token);
-
-        StatusText = "Stopped";
-    }
-
-    private void RunPhotonDebugIteration()
-    {
-        if (_debugBuffers == null || _lastScene == null || _lastCamera == null)
+        if (_lastScene == null || _lastCamera == null)
             return;
 
-        // 1) Eye pass debug (optional each iteration; you can keep it only on view change if you want)
-        RefreshEyeDebug(_debugBuffers.Width, _debugBuffers.Height, _lastCamera, _lastScene);
+        StatusText = "SPPM rendering...";
 
+        int width = _accum!.Width;
+        int height = _accum.Height;
+
+        // Persistent SPPM state
+        var persistentVps = new Dictionary<int, VisiblePoint>(width * height);
+        int iteration = 0;
+
+        float alpha = Sppm.GetSppmAlpha();
+        float initialRadius = Sppm.GetInitialRadius();
         int photonsPerPass = Sppm.GetPhotonsPerPass();
         int photonMaxDepth = Sppm.GetPhotonMaxDepth();
 
-        // 2) Photon pass
-        var stats = new PhotonTraceStats();
-        var photons = PhotonTracer.TracePhotonPass(
-            scene: _lastScene,
-            photonsPerPass: photonsPerPass,      // relaxed time constraints; tweak later
-            maxDepth: photonMaxDepth,
-            baseSeed: 12345,
-            iterationIndex: _sppmIteration++,
-            stats: stats);
-
-        // 3) Fill photon debug images
-        lock (_debugLock)
+        try
         {
-            PhotonDebugImages.FillPhotonMapsXZ(
-                _lastScene,
-                photons,
-                _debugBuffers);
+            await Task.Run(() =>
+            {
+                while (!token.IsCancellationRequested)
+                {
+                    SppmRunner12_3.RunIteration(
+                        width,
+                        height,
+                        _lastCamera,
+                        _lastScene,
+                        _debugBuffers!,
+                        _accum,
+                        persistentVps,
+                        baseSeed: 12345,
+                        iterationIndex: iteration++,
+                        photonsPerPass: photonsPerPass,
+                        photonMaxDepth: photonMaxDepth,
+                        initialRadius: initialRadius,
+                        alpha: alpha,
+                        out var stats);
+
+                    // Update UI stats
+                    _ui.Post(_ =>
+                    {
+                        StatsText =
+                            $"SPPM 12.3\n" +
+                            $"Iteration: {iteration}\n" +
+                            $"Photons/pass: {photonsPerPass}\n" +
+                            $"Visible points: {stats.VisiblePointsCreated}\n" +
+                            $"Photon deposits: {stats.PhotonDeposits}\n" +
+                            $"Photon misses: {stats.PhotonMisses}\n" +
+                            $"Eye pass: {stats.EyePassMs:0.0} ms\n" +
+                            $"Photon pass: {stats.PhotonPassMs:0.0} ms\n" +
+                            $"Gather: {stats.GatherMs:0.0} ms\n";
+                    }, null);
+
+                    // Force redraw (your proven approach)
+                    PostTileUpdate(0, 0, width, height);
+                }
+            }, token);
         }
-
-        // 4) Update stats text (optional)
-        _ui.Post(_ =>
+        catch (OperationCanceledException)
         {
-            StatsText =
-                $"SPPM 12.1 Photon Pass\n" +
-                $"Photons/pass:      {photonsPerPass}\n" +
-                $"Photon max depth:  {photonMaxDepth}\n" +
-                $"Photons requested: {stats.PhotonsRequested}\n" +
-                $"Photons emitted:   {stats.PhotonsEmitted}\n" +
-                $"Photons stored:    {stats.PhotonsStored} (Lambertian only)\n" +
-                $"Avg path length:   {stats.AvgPathLength:0.00}\n" +
-                $"RR terminated:     {stats.PathsTerminatedRR}\n" +
-                $"MaxDepth term:     {stats.PathsTerminatedMaxDepth}\n";
-        }, null);
-
-        // 5) Force repaint (your proven approach)
-        PostTileUpdate(0, 0, _debugBuffers.Width, _debugBuffers.Height);
+            StatusText = "SPPM stopped";
+        }
     }
 
-    [RelayCommand]
-    private void RunSppmIteration()
-    {
-        if (_debugBuffers == null || _lastScene == null || _lastCamera == null) return;
+    //[RelayCommand]
+    //private void RunSppmIteration()
+    //{
+    //    if (_debugBuffers == null || _lastScene == null || _lastCamera == null) return;
 
-        int photonsPerPass = Sppm.GetPhotonsPerPass();     // from shared Sppm settings
-        int photonMaxDepth = Sppm.GetPhotonMaxDepth();
-        float radius = Sppm.GetInitialRadius();            // default 30
+    //    int photonsPerPass = Sppm.GetPhotonsPerPass();     // from shared Sppm settings
+    //    int photonMaxDepth = Sppm.GetPhotonMaxDepth();
+    //    float radius = Sppm.GetInitialRadius();            // default 30
 
-        var stats = new SppmIterationStats();
+    //    var stats = new SppmIterationStats();
 
-        StatusText = "SPPM (single iteration) started...";
+    //    StatusText = "SPPM (single iteration) started...";
 
-        // Run on background thread
-        _ = Task.Run(() =>
-        {
-            lock (_debugLock)
-            {
-                SppmDebugRunner12_2.RunOneIteration(
-                    _debugBuffers.Width, _debugBuffers.Height,
-                    _lastCamera, _lastScene,
-                    _debugBuffers,
-                    baseSeed: 12345,
-                    iterationIndex: _sppmIteration++,
-                    photonsPerPass: photonsPerPass,
-                    photonMaxDepth: photonMaxDepth,
-                    radius: radius,
-                    outStats: stats);
+    //    // Run on background thread
+    //    _ = Task.Run(() =>
+    //    {
+    //        lock (_debugLock)
+    //        {
+    //            //SppmRunner12_3.RunIteration(
+    //            //    _debugBuffers.Width, _debugBuffers.Height,
+    //            //    _lastCamera, _lastScene,
+    //            //    _debugBuffers,
+    //            //    baseSeed: 12345,
+    //            //    iterationIndex: _sppmIteration++,
+    //            //    photonsPerPass: photonsPerPass,
+    //            //    photonMaxDepth: photonMaxDepth,
+    //            //    radius: radius,
+    //            //    outStats: stats);
 
-                // Recompute depth normalization if you want depth refreshed
-                _depthInvMax = ComputeDepthInvMax(_debugBuffers);
-            }
+    //            SppmRunner12_3.RunIteration(
+    //                _debugBuffers.Width, _debugBuffers.Height, 
+    //                _lastCamera, _lastScene,
+    //                _debugBuffers,
+    //                )
 
-            _ui.Post(_ =>
-            {
-                StatsText =
-                    $"SPPM 12.2 Iteration\n" +
-                    $"Resolution: {_debugBuffers.Width}x{_debugBuffers.Height}\n" +
-                    $"Radius: {radius}\n" +
-                    $"Photons/pass: {photonsPerPass}\n" +
-                    $"Photon max depth: {photonMaxDepth}\n" +
-                    $"Visible points: {stats.VisiblePointsCreated}\n" +
-                    $"Photon stored: {stats.PhotonsStored}\n" +
-                    $"Photon deposits: {stats.PhotonDeposits}\n" +
-                    $"Photon misses: {stats.PhotonMisses}\n" +
-                    $"EyePass ms: {stats.EyePassMs:0.0}\n" +
-                    $"PhotonPass ms: {stats.PhotonPassMs:0.0}\n" +
-                    $"Gather ms: {stats.GatherMs:0.0}\n";
+    //            // Recompute depth normalization if you want depth refreshed
+    //            _depthInvMax = ComputeDepthInvMax(_debugBuffers);
+    //        }
 
-                StatusText = "SPPM (single iteration) done...";
+    //        _ui.Post(_ =>
+    //        {
+    //            StatsText =
+    //                $"SPPM 12.2 Iteration\n" +
+    //                $"Resolution: {_debugBuffers.Width}x{_debugBuffers.Height}\n" +
+    //                $"Radius: {radius}\n" +
+    //                $"Photons/pass: {photonsPerPass}\n" +
+    //                $"Photon max depth: {photonMaxDepth}\n" +
+    //                $"Visible points: {stats.VisiblePointsCreated}\n" +
+    //                $"Photon stored: {stats.PhotonsStored}\n" +
+    //                $"Photon deposits: {stats.PhotonDeposits}\n" +
+    //                $"Photon misses: {stats.PhotonMisses}\n" +
+    //                $"EyePass ms: {stats.EyePassMs:0.0}\n" +
+    //                $"PhotonPass ms: {stats.PhotonPassMs:0.0}\n" +
+    //                $"Gather ms: {stats.GatherMs:0.0}\n";
 
-                // Force a repaint (your proven full-frame update)
-                PostTileUpdate(0, 0, _debugBuffers.Width, _debugBuffers.Height);
-            }, null);
-        });
-    }
+    //            StatusText = "SPPM (single iteration) done...";
+
+    //            // Force a repaint (your proven full-frame update)
+    //            PostTileUpdate(0, 0, _debugBuffers.Width, _debugBuffers.Height);
+    //        }, null);
+    //    });
+    //}
 
     private void PostStats(RenderProgress p)
     {
