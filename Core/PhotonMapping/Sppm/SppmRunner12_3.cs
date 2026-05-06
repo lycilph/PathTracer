@@ -74,18 +74,6 @@ public static class SppmRunner12_3
 
         ComputeRadiusStats(currentVps, stats);
 
-        int debugX = width / 2;
-        int debugY = height / 2;
-        int debugIndex = debugY * width + debugX;
-
-        if (persistentVps.TryGetValue(debugIndex, out var vpd))
-        {
-            Debug.WriteLine(
-                $"[Center Pixel] N={vpd.N:0.##}, R={vpd.Radius:0.###}");
-        }
-
-
-
         // --- 6) Final radiance (beauty + debug buffers) ---
         WriteBeauty(width, height, currentVps, beauty, dbg, iterationIndex);
     }
