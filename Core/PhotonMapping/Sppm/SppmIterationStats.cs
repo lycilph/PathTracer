@@ -13,4 +13,10 @@ public sealed class SppmIterationStats
     public double EyePassMs;
     public double PhotonPassMs;
     public double GatherMs;
+
+
+    // radius diagnostics
+    public float RadiusMin;
+    public float RadiusAvg;
+    public float RadiusMax;
 }

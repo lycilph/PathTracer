@@ -67,6 +67,15 @@ public sealed class AccumulationBuffer
         _spp[idx] += 1;
     }
 
+    public void SetPixel(int x, int y, Vec3 value)
+    {
+        int idx = y * Width + x;
+        _sumR[idx] = value.X;
+        _sumG[idx] = value.Y;
+        _sumB[idx] = value.Z;
+        _spp[idx] = 1;
+    }
+
     public Vec3 GetAverage(int x, int y)
     {
         int idx = y * Width + x;

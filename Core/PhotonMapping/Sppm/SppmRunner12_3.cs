@@ -72,11 +72,26 @@ public static class SppmRunner12_3
             vp.Phi = Vec3.Zero;
         }
 
+        ComputeRadiusStats(currentVps, stats);
+
+        int debugX = width / 2;
+        int debugY = height / 2;
+        int debugIndex = debugY * width + debugX;
+
+        if (persistentVps.TryGetValue(debugIndex, out var vpd))
+        {
+            Debug.WriteLine(
+                $"[Center Pixel] N={vpd.N:0.##}, R={vpd.Radius:0.###}");
+        }
+
+
+
         // --- 6) Final radiance (beauty + debug buffers) ---
         WriteBeauty(width, height, currentVps, beauty, dbg, iterationIndex);
     }
 
     // -------------------------------------------------------------
+
 
     private static List<VisiblePoint> EyePass(
         int width,
@@ -99,7 +114,8 @@ public static class SppmRunner12_3
             {
                 int pixelIndex = y * width + x;
 
-                var vp = EyePassDebugger.TryCreateVisiblePoint(
+                // --- Trace eye ray and find visible point info ---
+                var tempVp = EyePassDebugger.TryCreateVisiblePoint(
                     x, y,
                     width, height,
                     camera, scene,
@@ -112,25 +128,35 @@ public static class SppmRunner12_3
                     continue;
                 }
 
-                if (vp == null)
+                if (tempVp == null)
                 {
                     stats.VisiblePointsMissed++;
                     continue;
                 }
 
-                if (persistent.TryGetValue(pixelIndex, out var old))
+                // --- Get or create the persistent visible point ---
+                if (!persistent.TryGetValue(pixelIndex, out var vp))
                 {
-                    vp.N = old.N;
-                    vp.Tau = old.Tau;
-                    vp.Radius = old.Radius;
-                }
-                else
-                {
-                    vp.Radius = initialRadius;
-                    vp.N = 0f;
-                    vp.Tau = Vec3.Zero;
+                    vp = new VisiblePoint
+                    {
+                        PixelX = x,
+                        PixelY = y,
+                        Radius = initialRadius,
+                        N = 0f,
+                        Tau = Vec3.Zero
+                    };
                     persistent[pixelIndex] = vp;
                 }
+
+                // --- Update per-iteration geometric data ---
+                vp.Position = tempVp.Position;
+                vp.Normal = tempVp.Normal;
+                vp.Beta = tempVp.Beta;
+                vp.Material = tempVp.Material;
+
+                // --- Reset iteration-local accumulators ---
+                vp.M = 0;
+                vp.Phi = Vec3.Zero;
 
                 result.Add(vp);
                 stats.VisiblePointsCreated++;
@@ -139,6 +165,7 @@ public static class SppmRunner12_3
 
         return result;
     }
+
 
     private static void Gather(
         VisiblePointGrid grid,
@@ -190,11 +217,40 @@ public static class SppmRunner12_3
 
             Vec3 L = Vec3.Hadamard(vp.Beta, indirect);
 
-            beauty.AddSample(vp.PixelX, vp.PixelY, L);
+            beauty.SetPixel(vp.PixelX, vp.PixelY, L);
 
             dbg.Get(DebugBufferId.IndirectPhoton)[idx] = indirect;
             dbg.Get(DebugBufferId.PhotonCountN)[idx] = new Vec3(vp.N);
             dbg.Get(DebugBufferId.Radius)[idx] = new Vec3(vp.Radius);
         }
+    }
+
+    private static void ComputeRadiusStats(
+        List<VisiblePoint> vps,
+        SppmIterationStats stats)
+    {
+        if (vps.Count == 0)
+        {
+            stats.RadiusMin = 0f;
+            stats.RadiusAvg = 0f;
+            stats.RadiusMax = 0f;
+            return;
+        }
+
+        float min = float.PositiveInfinity;
+        float max = 0f;
+        double sum = 0.0;
+
+        for (int i = 0; i < vps.Count; i++)
+        {
+            float r = vps[i].Radius;
+            min = MathF.Min(min, r);
+            max = MathF.Max(max, r);
+            sum += r;
+        }
+
+        stats.RadiusMin = min;
+        stats.RadiusMax = max;
+        stats.RadiusAvg = (float)(sum / vps.Count);
     }
 }

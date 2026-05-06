@@ -12,13 +12,13 @@ public sealed class VisiblePoint
     public int PixelX { get; init; }
     public int PixelY { get; init; }
 
-    public Vec3 Position { get; init; }
-    public Vec3 Normal { get; init; }
+    public Vec3 Position { get; set; }
+    public Vec3 Normal { get; set; }
 
     // Throughput from camera to this point (includes any delta chain before it).
-    public Vec3 Beta { get; init; }
+    public Vec3 Beta { get; set; }
 
-    public Lambertian Material { get; init; } = null!;
+    public Lambertian Material { get; set; } = null!;
 
     // --- Progressive SPPM state ---
     public float Radius;     // R_i
