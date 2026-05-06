@@ -10,9 +10,9 @@ public enum DebugBufferId
     Throughput,
     PhotonHitMapXZ,
     PhotonFluxMapXZ,
+    PhotonCountM,
+    IndirectPhoton,
     // Placeholder below this
     Radius,
-    PhotonCountN,
-    PhotonCountM,
-    IndirectPhoton
+    PhotonCountN
 }

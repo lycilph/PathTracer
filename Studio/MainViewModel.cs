@@ -7,6 +7,7 @@ using Core.Camera;
 using Core.Debugging;
 using Core.Math;
 using Core.PhotonMapping;
+using Core.PhotonMapping.Sppm;
 using Core.Rendering;
 using Core.Scene;
 using Scripting;
@@ -84,11 +85,11 @@ return Scene.CornellSimple(thinLens: false);
         "Throughput",
         "PhotonHitMapXZ",
         "PhotonFluxMapXZ",
+        "PhotonCountM",
+        "IndirectPhoton",
         // Placerholders below this
         "Radius",
-        "PhotonCountN",
-        "PhotonCountM",
-        "IndirectPhoton"
+        "PhotonCountN"
     };
 
     [ObservableProperty]
@@ -284,6 +285,63 @@ return Scene.CornellSimple(thinLens: false);
 
         // 5) Force repaint (your proven approach)
         PostTileUpdate(0, 0, _debugBuffers.Width, _debugBuffers.Height);
+    }
+
+    [RelayCommand]
+    private void RunSppmIteration()
+    {
+        if (_debugBuffers == null || _lastScene == null || _lastCamera == null) return;
+
+        int photonsPerPass = Sppm.GetPhotonsPerPass();     // from shared Sppm settings
+        int photonMaxDepth = Sppm.GetPhotonMaxDepth();
+        float radius = Sppm.GetInitialRadius();            // default 30
+
+        var stats = new SppmIterationStats();
+
+        StatusText = "SPPM (single iteration) started...";
+
+        // Run on background thread
+        _ = Task.Run(() =>
+        {
+            lock (_debugLock)
+            {
+                SppmDebugRunner12_2.RunOneIteration(
+                    _debugBuffers.Width, _debugBuffers.Height,
+                    _lastCamera, _lastScene,
+                    _debugBuffers,
+                    baseSeed: 12345,
+                    iterationIndex: _sppmIteration++,
+                    photonsPerPass: photonsPerPass,
+                    photonMaxDepth: photonMaxDepth,
+                    radius: radius,
+                    outStats: stats);
+
+                // Recompute depth normalization if you want depth refreshed
+                _depthInvMax = ComputeDepthInvMax(_debugBuffers);
+            }
+
+            _ui.Post(_ =>
+            {
+                StatsText =
+                    $"SPPM 12.2 Iteration\n" +
+                    $"Resolution: {_debugBuffers.Width}x{_debugBuffers.Height}\n" +
+                    $"Radius: {radius}\n" +
+                    $"Photons/pass: {photonsPerPass}\n" +
+                    $"Photon max depth: {photonMaxDepth}\n" +
+                    $"Visible points: {stats.VisiblePointsCreated}\n" +
+                    $"Photon stored: {stats.PhotonsStored}\n" +
+                    $"Photon deposits: {stats.PhotonDeposits}\n" +
+                    $"Photon misses: {stats.PhotonMisses}\n" +
+                    $"EyePass ms: {stats.EyePassMs:0.0}\n" +
+                    $"PhotonPass ms: {stats.PhotonPassMs:0.0}\n" +
+                    $"Gather ms: {stats.GatherMs:0.0}\n";
+
+                StatusText = "SPPM (single iteration) done...";
+
+                // Force a repaint (your proven full-frame update)
+                PostTileUpdate(0, 0, _debugBuffers.Width, _debugBuffers.Height);
+            }, null);
+        });
     }
 
     private void PostStats(RenderProgress p)
