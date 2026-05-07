@@ -3,6 +3,7 @@ using Core.Materials;
 using Core.Math;
 using Core.PhotonMapping.Sppm;
 using Core.Random;
+using Core.Rendering;
 using Core.Sampling;
 
 namespace Core.Debugging;
@@ -65,6 +66,7 @@ public static class EyePassDebugger
         }
     }
 
+
     public static VisiblePoint? TryCreateVisiblePoint(
         int x, int y,
         int width, int height,
@@ -72,8 +74,11 @@ public static class EyePassDebugger
         Scene.Scene scene,
         ulong baseSeed,
         int iterationIndex,
-        out bool isLambertian)
+        out bool isLambertian,
+        out Vec3 directAtHit)
     {
+        directAtHit = Vec3.Zero;
+
         ulong seed = SeedHash.PixelSampleSeed(x, y, iterationIndex, baseSeed);
         var rng = new Pcg32(seed);
         var sampler = new Sampler(rng);
@@ -95,8 +100,8 @@ public static class EyePassDebugger
 
             if (hit.Material.IsDelta)
             {
-                Vec3 wo = (-r.Direction).Normalized();
-                if (!hit.Material.Sample(wo, hit, sampler, out var wi, out var pdf, out var f))
+                Vec3 woDelta = (-r.Direction).Normalized();
+                if (!hit.Material.Sample(woDelta, hit, sampler, out var wi, out var pdf, out var f))
                     break;
 
                 float absCos = float.Abs(Vec3.Dot(wi, hit.Normal));
@@ -108,6 +113,12 @@ public static class EyePassDebugger
             if (hit.Material is Lambertian lam)
             {
                 isLambertian = true;
+
+                Vec3 wo = (-r.Direction).Normalized();
+
+                // Direct lighting at the surface point (NEE)
+                directAtHit = DirectLighting.EstimateDirect(hit, wo, scene, sampler, r.Time);
+
                 return new VisiblePoint
                 {
                     PixelX = x,

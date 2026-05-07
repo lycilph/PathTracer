@@ -78,6 +78,7 @@ return Scene.CornellSimple(thinLens: false);
     public string[] DebugBufferNames { get; } =
     {
         "Beauty",
+        "DirectLighting",
         "Depth",
         "Normal",
         "Albedo",
@@ -222,71 +223,6 @@ return Scene.CornellSimple(thinLens: false);
         }
     }
 
-    //[RelayCommand(IncludeCancelCommand = true)]
-    //private async Task StartSppmDebugAsync(CancellationToken token)
-    //{
-    //    StatusText = "SPPM (Photon Debug) running...";
-
-    //    await Task.Run(() =>
-    //    {
-    //        while (!token.IsCancellationRequested)
-    //        {
-    //            RunPhotonDebugIteration();
-    //        }
-    //    }, token);
-
-    //    StatusText = "Stopped";
-    //}
-
-    //private void RunPhotonDebugIteration()
-    //{
-    //    if (_debugBuffers == null || _lastScene == null || _lastCamera == null)
-    //        return;
-
-    //    // 1) Eye pass debug (optional each iteration; you can keep it only on view change if you want)
-    //    RefreshEyeDebug(_debugBuffers.Width, _debugBuffers.Height, _lastCamera, _lastScene);
-
-    //    int photonsPerPass = Sppm.GetPhotonsPerPass();
-    //    int photonMaxDepth = Sppm.GetPhotonMaxDepth();
-
-    //    // 2) Photon pass
-    //    var stats = new PhotonTraceStats();
-    //    var photons = PhotonTracer.TracePhotonPass(
-    //        scene: _lastScene,
-    //        photonsPerPass: photonsPerPass,      // relaxed time constraints; tweak later
-    //        maxDepth: photonMaxDepth,
-    //        baseSeed: 12345,
-    //        iterationIndex: _sppmIteration++,
-    //        stats: stats);
-
-    //    // 3) Fill photon debug images
-    //    lock (_debugLock)
-    //    {
-    //        PhotonDebugImages.FillPhotonMapsXZ(
-    //            _lastScene,
-    //            photons,
-    //            _debugBuffers);
-    //    }
-
-    //    // 4) Update stats text (optional)
-    //    _ui.Post(_ =>
-    //    {
-    //        StatsText =
-    //            $"SPPM 12.1 Photon Pass\n" +
-    //            $"Photons/pass:      {photonsPerPass}\n" +
-    //            $"Photon max depth:  {photonMaxDepth}\n" +
-    //            $"Photons requested: {stats.PhotonsRequested}\n" +
-    //            $"Photons emitted:   {stats.PhotonsEmitted}\n" +
-    //            $"Photons stored:    {stats.PhotonsStored} (Lambertian only)\n" +
-    //            $"Avg path length:   {stats.AvgPathLength:0.00}\n" +
-    //            $"RR terminated:     {stats.PathsTerminatedRR}\n" +
-    //            $"MaxDepth term:     {stats.PathsTerminatedMaxDepth}\n";
-    //    }, null);
-
-    //    // 5) Force repaint (your proven approach)
-    //    PostTileUpdate(0, 0, _debugBuffers.Width, _debugBuffers.Height);
-    //}
-
     [RelayCommand(IncludeCancelCommand = true)]
     private async Task StartSppmRenderAsync(CancellationToken token)
     {
@@ -301,6 +237,7 @@ return Scene.CornellSimple(thinLens: false);
         // Persistent SPPM state
         var persistentVps = new Dictionary<int, VisiblePoint>(width * height);
         int iteration = 0;
+        int eyePassCount = 1; // Ne
 
         _accum.Clear();
 
@@ -324,12 +261,18 @@ return Scene.CornellSimple(thinLens: false);
                         _accum,
                         persistentVps,
                         baseSeed: 12345,
-                        iterationIndex: iteration++,
+                        iterationIndex: iteration,
+                        eyePassCount: eyePassCount,
                         photonsPerPass: photonsPerPass,
                         photonMaxDepth: photonMaxDepth,
                         initialRadius: initialRadius,
                         alpha: alpha,
                         out var stats);
+
+
+                    // increment after a successful iteration
+                    iteration++;
+                    eyePassCount++;
 
                     // Update UI stats
                     _ui.Post(_ =>
@@ -489,6 +432,7 @@ return Scene.CornellSimple(thinLens: false);
         return SelectedDebugBuffer switch
         {
             "Beauty" => null!, // handled separately (beauty comes from accumulation)
+            "DirectLighting" => _debugBuffers.Get(DebugBufferId.DirectLighting),
             "Depth" => _debugBuffers.Get(DebugBufferId.Depth),
             "Normal" => _debugBuffers.Get(DebugBufferId.Normal),
             "Albedo" => _debugBuffers.Get(DebugBufferId.Albedo),

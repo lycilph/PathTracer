@@ -18,6 +18,7 @@ public static class SppmRunner12_3
         Dictionary<int, VisiblePoint> persistentVps,
         ulong baseSeed,
         int iterationIndex,
+        int eyePassCount,
         int photonsPerPass,
         int photonMaxDepth,
         float initialRadius,
@@ -75,7 +76,7 @@ public static class SppmRunner12_3
         ComputeRadiusStats(currentVps, stats);
 
         // --- 6) Final radiance (beauty + debug buffers) ---
-        WriteBeauty(width, height, currentVps, beauty, dbg, iterationIndex);
+        WriteBeauty(width, height, currentVps, beauty, dbg, eyePassCount);
     }
 
     // -------------------------------------------------------------
@@ -108,7 +109,8 @@ public static class SppmRunner12_3
                     width, height,
                     camera, scene,
                     baseSeed, iterationIndex,
-                    out bool isLambertian);
+                    out bool isLambertian,
+                    out Vec3 directAtHit);
 
                 if (!isLambertian)
                 {
@@ -141,6 +143,9 @@ public static class SppmRunner12_3
                 vp.Normal = tempVp.Normal;
                 vp.Beta = tempVp.Beta;
                 vp.Material = tempVp.Material;
+
+                // NEW: accumulate direct lighting in camera space
+                vp.DirectSum += Vec3.Hadamard(vp.Beta, directAtHit);
 
                 // --- Reset iteration-local accumulators ---
                 vp.M = 0;
@@ -181,6 +186,7 @@ public static class SppmRunner12_3
         }
     }
 
+
     private static void WriteBeauty(
         int width,
         int height,
@@ -192,24 +198,40 @@ public static class SppmRunner12_3
         dbg.Clear(DebugBufferId.PhotonCountN);
         dbg.Clear(DebugBufferId.IndirectPhoton);
         dbg.Clear(DebugBufferId.Radius);
+        dbg.Clear(DebugBufferId.DirectLighting);
+
+        beauty.Clear();
 
         foreach (var vp in vps)
         {
             int idx = vp.PixelY * width + vp.PixelX;
 
-            if (vp.N <= 0f)
-                continue;
+            // --- Direct lighting (always available if we had a visible point this iteration) ---
+            // DirectSum is accumulated in camera space each eye pass, so average it by eyePassCount.
+            Vec3 direct = (eyePassCount > 0) ? (vp.DirectSum / eyePassCount) : Vec3.Zero;
 
-            Vec3 indirect =
-                vp.Tau / (MathUtil.Pi * vp.Radius * vp.Radius * eyePassCount);
+            // --- Indirect lighting (SPPM) ---
+            Vec3 indirectAtHit = Vec3.Zero;
+            if (vp.N > 0f && eyePassCount > 0)
+            {
+                indirectAtHit =
+                    vp.Tau / (MathUtil.Pi * vp.Radius * vp.Radius * eyePassCount);
+            }
 
-            Vec3 L = Vec3.Hadamard(vp.Beta, indirect);
+            // Convert indirect-at-hit to camera space by applying Beta
+            Vec3 indirect = Vec3.Hadamard(vp.Beta, indirectAtHit);
 
+            // Total
+            Vec3 L = direct + indirect;
+
+            // You are using SetPixel (display buffer semantics) which is correct for SPPM
             beauty.SetPixel(vp.PixelX, vp.PixelY, L);
 
-            dbg.Get(DebugBufferId.IndirectPhoton)[idx] = indirect;
+            // Debug buffers:
+            dbg.Get(DebugBufferId.IndirectPhoton)[idx] = indirectAtHit; // stays “at hit”, consistent with your current debug view
             dbg.Get(DebugBufferId.PhotonCountN)[idx] = new Vec3(vp.N);
             dbg.Get(DebugBufferId.Radius)[idx] = new Vec3(vp.Radius);
+            dbg.Get(DebugBufferId.DirectLighting)[idx] = direct;
         }
     }
 

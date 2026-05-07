@@ -16,6 +16,7 @@ public sealed class DebugBufferSet
 
         // Allocate the common ones now
         Allocate(DebugBufferId.Depth);
+        Allocate(DebugBufferId.DirectLighting);
         Allocate(DebugBufferId.Normal);
         Allocate(DebugBufferId.Albedo);
         Allocate(DebugBufferId.VisiblePointMask);
@@ -24,8 +25,6 @@ public sealed class DebugBufferSet
         // For photon mapping
         Allocate(DebugBufferId.PhotonHitMapXZ);
         Allocate(DebugBufferId.PhotonFluxMapXZ);
-
-        // Placeholders (allocated now so UI can always show them)
         Allocate(DebugBufferId.Radius);
         Allocate(DebugBufferId.PhotonCountN);
         Allocate(DebugBufferId.PhotonCountM);

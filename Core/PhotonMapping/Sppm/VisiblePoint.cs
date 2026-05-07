@@ -20,6 +20,9 @@ public sealed class VisiblePoint
 
     public Lambertian Material { get; set; } = null!;
 
+    // --- Direct lighting accumulation (camera-space, already multiplied by Beta) ---
+    public Vec3 DirectSum;
+
     // --- Progressive SPPM state ---
     public float Radius;     // R_i
     public float N;          // accumulated photon count

@@ -18,6 +18,7 @@
     <None Include="$(MSBuildThisFileDirectory)milestone-12.1-sppm-photon-pass.md" />
     <None Include="$(MSBuildThisFileDirectory)milestone-12.2-sppm-visiblepoints-gather.md" />
     <None Include="$(MSBuildThisFileDirectory)milestone-12.3-sppm-progressive-update.md" />
+    <None Include="$(MSBuildThisFileDirectory)milestone-12.4-sppm-direct-lighting.md" />
     <None Include="$(MSBuildThisFileDirectory)milestone-2-diffuse-path-tracing.md" />
     <None Include="$(MSBuildThisFileDirectory)milestone-3-emission-cornell.md" />
     <None Include="$(MSBuildThisFileDirectory)milestone-4-nee-mis.md" />

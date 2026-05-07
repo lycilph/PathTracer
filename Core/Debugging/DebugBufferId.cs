@@ -3,6 +3,7 @@
 public enum DebugBufferId
 {
     Beauty,
+    DirectLighting,
     Depth,
     Normal,
     Albedo,
@@ -12,7 +13,6 @@ public enum DebugBufferId
     PhotonFluxMapXZ,
     PhotonCountM,
     IndirectPhoton,
-    // Placeholder below this
     Radius,
     PhotonCountN
 }
