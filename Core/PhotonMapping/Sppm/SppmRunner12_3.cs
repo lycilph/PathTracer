@@ -117,6 +117,13 @@ public static class SppmRunner12_3
                 var rng = new Pcg32(seed);
                 var sampler = new Sampler(rng);
 
+                // Use a separate deterministic sampler stream for fallback so it doesn’t depend on
+                // how many random numbers were consumed during the delta-chain traversal.
+                ulong fbSeed = SeedHash.Hash64(seed, 0xF00DF00DUL);
+                var fbRng = new Pcg32(fbSeed);
+                var fbSampler = new Sampler(fbRng);
+                Vec3 Lfb = new Vec3();
+
                 float u = (x + sampler.Next1D()) / width;
                 float v = (y + sampler.Next1D()) / height;
                 var primaryRay = camera.GetRay(u, 1f - v, sampler);
@@ -165,7 +172,11 @@ public static class SppmRunner12_3
 
                 if (!gotNonDeltaHit)
                 {
-                    // Miss → leave fallback as-is (background black), no VP
+                    // Fallback path tracing sample
+                    Lfb = PathTracer.EvaluateRay(primaryRay, scene, fbSampler);
+                    fallbackSum[pixelIndex] += Lfb;
+                    fallbackCount[pixelIndex] += 1;
+
                     stats.VisiblePointsMissed++;
                     continue;
                 }
@@ -213,15 +224,9 @@ public static class SppmRunner12_3
                 // Non-Lambertian first non-delta hit → fallback path tracing
                 stats.VisiblePointsSkippedNonLambertian++;
 
-                // Use a separate deterministic sampler stream for fallback so it doesn’t depend on
-                // how many random numbers were consumed during the delta-chain traversal.
-                ulong fbSeed = SeedHash.Hash64(seed, 0xF00DF00DUL);
-                var fbRng = new Pcg32(fbSeed);
-                var fbSampler = new Sampler(fbRng);
-
                 // Evaluate full path tracing for this pixel sample
                 // (your existing PathTracer.EvaluateRay must be callable)
-                Vec3 Lfb = PathTracer.EvaluateRay(primaryRay, scene, fbSampler);
+                Lfb = PathTracer.EvaluateRay(primaryRay, scene, fbSampler);
 
                 fallbackSum[pixelIndex] += Lfb;
                 fallbackCount[pixelIndex] += 1;
@@ -243,6 +248,16 @@ public static class SppmRunner12_3
             {
                 var d = vp.Position - ph.Position;
                 if (d.LengthSquared() > vp.Radius * vp.Radius)
+                    continue;
+
+
+                const float normalThreshold = 0.9f; // ~25 degrees
+                if (Vec3.Dot(vp.Normal, ph.SurfaceNormal) < normalThreshold)
+                    continue;
+
+
+                float planeDist = float.Abs(Vec3.Dot(ph.Position - vp.Position, vp.Normal));
+                if (planeDist > 0.01f * vp.Radius) // small fraction of radius
                     continue;
 
                 Vec3 f = vp.Material.Albedo * MathUtil.InvPi;

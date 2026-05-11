@@ -16,8 +16,7 @@ public sealed class DiffuseLight : IMaterial
 
     public bool IsDelta => true; // it doesn't scatter; treat as delta-ish for MIS decisions
 
-    public Vec3 Emitted(in Ray rayIn, in HitRecord hit)
-        => hit.FrontFace ? Radiance : Vec3.Zero;
+    public Vec3 Emitted(in Ray rayIn, in HitRecord hit) => Radiance;
 
     public Vec3 Evaluate(in Vec3 wo, in Vec3 wi, in HitRecord hit) => Vec3.Zero;
 

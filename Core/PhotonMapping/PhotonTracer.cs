@@ -104,7 +104,7 @@ public static class PhotonTracer
             if (hit.Material is Lambertian && !hit.Material.IsDelta)
             {
                 var incoming = (-ray.Direction).Normalized();
-                outPhotons.Add(new Photon(hit.Point, incoming, beta));
+                outPhotons.Add(new Photon(hit.Point, incoming, beta, hit.Normal.Normalized()));
                 stats.PhotonsStored++;
             }
 
