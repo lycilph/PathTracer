@@ -1,8 +1,12 @@
 ﻿using System.Diagnostics;
 using Core.Camera;
 using Core.Debugging;
+using Core.Materials;
 using Core.Math;
+using Core.Random;
 using Core.Rendering;
+using Core.Sampling;
+using Core.Scene;
 
 namespace Core.PhotonMapping.Sppm;
 
@@ -16,6 +20,8 @@ public static class SppmRunner12_3
         DebugBufferSet dbg,
         AccumulationBuffer beauty,
         Dictionary<int, VisiblePoint> persistentVps,
+        Vec3[] fallbackSum,
+        int[] fallbackCount,
         ulong baseSeed,
         int iterationIndex,
         int eyePassCount,
@@ -32,9 +38,10 @@ public static class SppmRunner12_3
         var currentVps = EyePass(
             width, height,
             camera, scene,
-            baseSeed, iterationIndex,
+            baseSeed, iterationIndex, eyePassCount,
             initialRadius,
             persistentVps,
+            fallbackSum, fallbackCount,
             dbg,
             stats);
 
@@ -76,11 +83,10 @@ public static class SppmRunner12_3
         ComputeRadiusStats(currentVps, stats);
 
         // --- 6) Final radiance (beauty + debug buffers) ---
-        WriteBeauty(width, height, currentVps, beauty, dbg, eyePassCount);
+        WriteBeauty(width, height, currentVps, beauty, dbg, eyePassCount, fallbackSum, fallbackCount);
     }
 
     // -------------------------------------------------------------
-
 
     private static List<VisiblePoint> EyePass(
         int width,
@@ -89,8 +95,11 @@ public static class SppmRunner12_3
         Scene.Scene scene,
         ulong baseSeed,
         int iterationIndex,
+        int eyePassCount,
         float initialRadius,
         Dictionary<int, VisiblePoint> persistent,
+        Vec3[] fallbackSum,
+        int[] fallbackCount,
         DebugBufferSet dbg,
         SppmIterationStats stats)
     {
@@ -103,62 +112,123 @@ public static class SppmRunner12_3
             {
                 int pixelIndex = y * width + x;
 
-                // --- Trace eye ray and find visible point info ---
-                var tempVp = EyePassDebugger.TryCreateVisiblePoint(
-                    x, y,
-                    width, height,
-                    camera, scene,
-                    baseSeed, iterationIndex,
-                    out bool isLambertian,
-                    out Vec3 directAtHit);
+                // Build deterministic primary ray + sampler for THIS pixel/iteration
+                ulong seed = SeedHash.PixelSampleSeed(x, y, iterationIndex, baseSeed);
+                var rng = new Pcg32(seed);
+                var sampler = new Sampler(rng);
 
-                if (!isLambertian)
+                float u = (x + sampler.Next1D()) / width;
+                float v = (y + sampler.Next1D()) / height;
+                var primaryRay = camera.GetRay(u, 1f - v, sampler);
+
+                // Trace through delta chain to first non-delta hit, accumulating beta.
+                Vec3 beta = Vec3.One;
+                Ray r = primaryRay;
+
+                HitRecord hit = default;
+                bool gotNonDeltaHit = false;
+
+                for (int depth = 0; depth < 12; depth++)
                 {
-                    stats.VisiblePointsSkippedNonLambertian++;
-                    continue;
+                    if (!scene.World.Hit(r, 0.001f, float.PositiveInfinity, out hit))
+                    {
+                        gotNonDeltaHit = false;
+                        break;
+                    }
+
+                    gotNonDeltaHit = true;
+
+                    if (hit.Material.IsDelta)
+                    {
+                        Vec3 wo = (-r.Direction).Normalized();
+                        if (!hit.Material.Sample(wo, hit, sampler, out var wi, out var pdf, out var f))
+                        {
+                            gotNonDeltaHit = false;
+                            break;
+                        }
+
+                        float absCos = float.Abs(Vec3.Dot(wi, hit.Normal));
+                        if (pdf <= 0f || absCos <= 0f)
+                        {
+                            gotNonDeltaHit = false;
+                            break;
+                        }
+
+                        beta = Vec3.Hadamard(beta, f) * (absCos / pdf);
+                        r = new Ray(hit.Point, wi, r.Time);
+                        continue;
+                    }
+
+                    // We reached first non-delta surface
+                    break;
                 }
 
-                if (tempVp == null)
+                if (!gotNonDeltaHit)
                 {
+                    // Miss → leave fallback as-is (background black), no VP
                     stats.VisiblePointsMissed++;
                     continue;
                 }
 
-                // --- Get or create the persistent visible point ---
-                if (!persistent.TryGetValue(pixelIndex, out var vp))
+                // Lambertian visible point path:
+                if (hit.Material is Lambertian lam)
                 {
-                    vp = new VisiblePoint
+                    // Compute direct at the visible point (using the current sampler)
+                    Vec3 wo = (-r.Direction).Normalized();
+                    Vec3 directAtHit = DirectLighting.EstimateDirect(hit, wo, scene, sampler, r.Time);
+
+                    if (!persistent.TryGetValue(pixelIndex, out var vp))
                     {
-                        PixelX = x,
-                        PixelY = y,
-                        Radius = initialRadius,
-                        N = 0f,
-                        Tau = Vec3.Zero
-                    };
-                    persistent[pixelIndex] = vp;
+                        vp = new VisiblePoint
+                        {
+                            PixelX = x,
+                            PixelY = y,
+                            Radius = initialRadius,
+                            N = 0f,
+                            Tau = Vec3.Zero,
+                            DirectSum = Vec3.Zero
+                        };
+                        persistent[pixelIndex] = vp;
+                    }
+
+                    // Update geometry for this iteration
+                    vp.Position = hit.Point;
+                    vp.Normal = hit.Normal.Normalized();
+                    vp.Beta = beta;
+                    vp.Material = lam;
+
+                    // Iteration-local reset
+                    vp.M = 0;
+                    vp.Phi = Vec3.Zero;
+
+                    // Accumulate direct in camera space
+                    vp.DirectSum += Vec3.Hadamard(beta, directAtHit);
+
+                    result.Add(vp);
+                    stats.VisiblePointsCreated++;
+                    dbg.SetPixel(DebugBufferId.VisiblePointMask, x, y, Vec3.One);
+                    continue;
                 }
 
-                // --- Update per-iteration geometric data ---
-                vp.Position = tempVp.Position;
-                vp.Normal = tempVp.Normal;
-                vp.Beta = tempVp.Beta;
-                vp.Material = tempVp.Material;
+                // Non-Lambertian first non-delta hit → fallback path tracing
+                stats.VisiblePointsSkippedNonLambertian++;
 
-                // NEW: accumulate direct lighting in camera space
-                vp.DirectSum += Vec3.Hadamard(vp.Beta, directAtHit);
+                // Use a separate deterministic sampler stream for fallback so it doesn’t depend on
+                // how many random numbers were consumed during the delta-chain traversal.
+                ulong fbSeed = SeedHash.Hash64(seed, 0xF00DF00DUL);
+                var fbRng = new Pcg32(fbSeed);
+                var fbSampler = new Sampler(fbRng);
 
-                // --- Reset iteration-local accumulators ---
-                vp.M = 0;
-                vp.Phi = Vec3.Zero;
+                // Evaluate full path tracing for this pixel sample
+                // (your existing PathTracer.EvaluateRay must be callable)
+                Vec3 Lfb = PathTracer.EvaluateRay(primaryRay, scene, fbSampler);
 
-                result.Add(vp);
-                stats.VisiblePointsCreated++;
-                dbg.SetPixel(DebugBufferId.VisiblePointMask, x, y, Vec3.One);
+                fallbackSum[pixelIndex] += Lfb;
+                fallbackCount[pixelIndex] += 1;
             }
 
         return result;
     }
-
 
     private static void Gather(
         VisiblePointGrid grid,
@@ -186,52 +256,58 @@ public static class SppmRunner12_3
         }
     }
 
-
     private static void WriteBeauty(
         int width,
         int height,
         List<VisiblePoint> vps,
         AccumulationBuffer beauty,
         DebugBufferSet dbg,
-        int eyePassCount)
+        int eyePassCount,
+        Vec3[] fallbackSum,
+        int[] fallbackCount)
     {
         dbg.Clear(DebugBufferId.PhotonCountN);
         dbg.Clear(DebugBufferId.IndirectPhoton);
         dbg.Clear(DebugBufferId.Radius);
         dbg.Clear(DebugBufferId.DirectLighting);
 
-        beauty.Clear();
+        // 1) Start by writing fallback average everywhere (or black)
+        for (int idx = 0; idx < width * height; idx++)
+        {
+            Vec3 baseColor = fallbackCount[idx] > 0
+                ? (fallbackSum[idx] / fallbackCount[idx])
+                : Vec3.Zero;
 
+            int x = idx % width;
+            int y = idx / width;
+            beauty.SetPixel(x, y, baseColor);
+        }
+
+        // 2) Overwrite Lambertian VP pixels with SPPM result
         foreach (var vp in vps)
         {
             int idx = vp.PixelY * width + vp.PixelX;
 
-            // --- Direct lighting (always available if we had a visible point this iteration) ---
-            // DirectSum is accumulated in camera space each eye pass, so average it by eyePassCount.
-            Vec3 direct = (eyePassCount > 0) ? (vp.DirectSum / eyePassCount) : Vec3.Zero;
+            Vec3 direct = vp.DirectSum / eyePassCount;
 
-            // --- Indirect lighting (SPPM) ---
             Vec3 indirectAtHit = Vec3.Zero;
-            if (vp.N > 0f && eyePassCount > 0)
+            if (vp.N > 0f)
             {
                 indirectAtHit =
                     vp.Tau / (MathUtil.Pi * vp.Radius * vp.Radius * eyePassCount);
             }
 
-            // Convert indirect-at-hit to camera space by applying Beta
             Vec3 indirect = Vec3.Hadamard(vp.Beta, indirectAtHit);
 
-            // Total
             Vec3 L = direct + indirect;
 
-            // You are using SetPixel (display buffer semantics) which is correct for SPPM
             beauty.SetPixel(vp.PixelX, vp.PixelY, L);
 
-            // Debug buffers:
-            dbg.Get(DebugBufferId.IndirectPhoton)[idx] = indirectAtHit; // stays “at hit”, consistent with your current debug view
+            // Debug buffers
+            dbg.Get(DebugBufferId.DirectLighting)[idx] = direct;
+            dbg.Get(DebugBufferId.IndirectPhoton)[idx] = indirectAtHit;
             dbg.Get(DebugBufferId.PhotonCountN)[idx] = new Vec3(vp.N);
             dbg.Get(DebugBufferId.Radius)[idx] = new Vec3(vp.Radius);
-            dbg.Get(DebugBufferId.DirectLighting)[idx] = direct;
         }
     }
 

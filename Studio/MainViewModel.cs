@@ -236,6 +236,8 @@ return Scene.CornellSimple(thinLens: false);
 
         // Persistent SPPM state
         var persistentVps = new Dictionary<int, VisiblePoint>(width * height);
+        var fallbackSum = new Vec3[width * height];
+        var fallbackCount = new int[width * height];
         int iteration = 0;
         int eyePassCount = 1; // Ne
 
@@ -252,6 +254,8 @@ return Scene.CornellSimple(thinLens: false);
             {
                 while (!token.IsCancellationRequested)
                 {
+                    int Ne = eyePassCount + 1;
+
                     SppmRunner12_3.RunIteration(
                         width,
                         height,
@@ -260,9 +264,11 @@ return Scene.CornellSimple(thinLens: false);
                         _debugBuffers!,
                         _accum,
                         persistentVps,
+                        fallbackSum,
+                        fallbackCount,
                         baseSeed: 12345,
                         iterationIndex: iteration,
-                        eyePassCount: eyePassCount,
+                        eyePassCount: Ne,
                         photonsPerPass: photonsPerPass,
                         photonMaxDepth: photonMaxDepth,
                         initialRadius: initialRadius,
