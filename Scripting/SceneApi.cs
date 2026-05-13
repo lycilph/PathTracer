@@ -18,6 +18,12 @@ public sealed class SceneApi
         _height = height;
     }
 
+    public SceneDefinition SppmCaustic()
+    {
+        var(scene, camera) = SppmCausticScene.Create(_width, _height);
+        return new SceneDefinition(scene, camera);
+    }
+
     public SceneDefinition CornellDefault(bool tintedGlass = true)
     {
         var (scene, camera) = CornellMaterialsShowcase.Create(_width, _height, tintedGlass);
