@@ -28,8 +28,8 @@ public partial class MainViewModel : ObservableObject
         // Capture UI context for marshaling updates without referencing Application.Current in core logic.
         _ui = SynchronizationContext.Current ?? new SynchronizationContext();
 
-        WidthInput = "640";
-        HeightInput = "360";
+        WidthInput = "400";
+        HeightInput = "400";
         TileSizeInput = "16";
         ThreadsInput = "";
 
@@ -146,12 +146,164 @@ return Scene.SppmCaustic();
     [RelayCommand(IncludeCancelCommand = true)]
     private async Task StartRenderAsync(CancellationToken token)
     {
-        StatusText = "Rendering...";
-
         int width = ParseInt(WidthInput, 640);
         int height = ParseInt(HeightInput, 360);
-        int tileSize = ParseInt(TileSizeInput, 16);
         int? threads = string.IsNullOrWhiteSpace(ThreadsInput) ? null : ParseInt(ThreadsInput, Environment.ProcessorCount);
+
+        _accum = new AccumulationBuffer(width, height);
+        
+        _presenter ??= new WriteableBitmapPresenter(width, height);
+        _presenter.Resize(width, height);
+        // Set RenderImage on UI thread before we start background work
+        RenderImage = _presenter.Bitmap;
+
+        var built = await TryBuildSceneFromScriptAsync(width, height, token);
+        if (built is null) return;
+
+        var (scene, camera) = built.Value;
+
+        if (RendererMode == RendererModes.Sppm)
+        {
+            await RunSppmAsync(width, height, camera, scene, threads, token);
+        }
+        else
+        {
+            await RunPathTracerAsync(width, height, camera, scene, threads, token);
+        }
+
+        //StatusText = "Rendering...";
+
+        //int width = ParseInt(WidthInput, 640);
+        //int height = ParseInt(HeightInput, 360);
+        //int tileSize = ParseInt(TileSizeInput, 16);
+        //int? threads = string.IsNullOrWhiteSpace(ThreadsInput) ? null : ParseInt(ThreadsInput, Environment.ProcessorCount);
+
+        //int targetSppParsed = ParseInt(TargetSppInput, 0);
+        //int? targetSpp = targetSppParsed > 0 ? targetSppParsed : null;
+
+        //if (targetSpp == null)
+        //    ProgressIndeterminate = true;
+        //else
+        //    ProgressPercentage = 0;
+
+        //_accum = new AccumulationBuffer(width, height);
+
+        //_presenter ??= new WriteableBitmapPresenter(width, height);
+        //_presenter.Resize(width, height);
+
+        //// Set RenderImage on UI thread before we start background work
+        //RenderImage = _presenter.Bitmap;
+
+
+        //var built = await TryBuildSceneFromScriptAsync(width, height, token);
+        //if (built is null) return;
+
+        //var (scene, camera) = built.Value;
+
+        //try
+        //{
+        //    // Important: move the long-running progressive loop off the UI thread
+        //    await Task.Run(async () =>
+        //    {
+        //        await ProgressiveRenderer.RenderLoopAsync(
+        //            width: width,
+        //            height: height,
+        //            camera: camera,
+        //            scene: scene,
+        //            accum: _accum,
+        //            tileSize: tileSize,
+        //            baseSeed: 123,
+        //            token: token,
+        //            reportProgress: p => PostStats(p),
+        //            reportTileUpdated: (x0, y0, w, h) => PostTileUpdate(x0, y0, w, h),
+        //            maxDegreeOfParallelism: threads,
+        //            progressEveryNTiles: 8,
+        //            targetSpp: targetSpp);
+        //    }, token);
+        //}
+        //catch (OperationCanceledException)
+        //{
+        //    StatusText = "Stopped";
+        //}
+        //catch (Exception ex)
+        //{
+        //    StatusText = "Error";
+        //    StatsText = ex.ToString();
+        //}
+        //finally
+        //{
+        //    // optional: set final status
+        //    if (!token.IsCancellationRequested)
+        //        StatusText = targetSpp.HasValue ? $"Finished (Target SPP {targetSpp.Value})" : "Finished";
+
+        //    ProgressIndeterminate = false;
+        //    ProgressPercentage = 0;
+        //}
+    }
+
+    private async Task RunSppmAsync(
+        int width, int height,
+        ICamera camera, Scene scene,
+        int? threads, CancellationToken token)
+    {
+        int photons = ParseInt(PhotonsPerIterInput, SppmRenderer.DefaultPhotonsPerIteration);
+        float radius = ParseFloat(SppmRadiusInput, SppmRenderer.DefaultInitialRadius);
+        float alpha = ParseFloat(SppmAlphaInput, SppmRenderer.DefaultAlpha);
+
+        // Clamp / validate
+        photons = Math.Max(1_000, photons);
+        radius = Math.Max(0.001f, radius);
+        alpha = Math.Clamp(alpha, 0.01f, 1f);
+
+        var pixelStates = SppmRenderer.CreatePixelStates(width, height, radius);
+
+        StatusText = "SPPM starting…";
+
+        try
+        {
+            await Task.Run(async () =>
+            {
+                await SppmRenderer.RenderLoopAsync(
+                    width, height, camera, scene,
+                    pixelStates,
+                    photonsPerIteration: photons,
+                    alpha: alpha,
+                    token: token,
+                    reportProgress: progress =>
+                    {
+                        // Marshal back to UI thread
+                        App.Current.Dispatcher.BeginInvoke(() =>
+                        {
+                            StatsText = progress.FormatStats();
+                            // Reuse the existing progress bar: show radius reduction as a
+                            // proxy for "convergence" (from 1 → 0 conceptually, so invert).
+                            ProgressPercentage = (int)(Math.Clamp(
+                                1.0 - progress.AverageRadius / radius, 0.0, 1.0) * 100);
+                        });
+                    },
+                    reportFrame: frame =>
+                    {
+                        App.Current.Dispatcher.BeginInvoke(() =>
+                            _presenter.UpdateFullFrame(frame));
+                    },
+                    maxDegreeOfParallelism: threads);
+            }, token);
+        }
+        catch (OperationCanceledException) { /* normal stop */ }
+        finally
+        {
+            StatusText = "Stopped";
+        }
+    }
+
+    private async Task RunPathTracerAsync(
+        int width, int height,
+        ICamera camera, Scene scene,
+        int? threads, CancellationToken token)
+    {
+        StatusText = "Rendering...";
+        
+        int tileSize = ParseInt(TileSizeInput, 16);
 
         int targetSppParsed = ParseInt(TargetSppInput, 0);
         int? targetSpp = targetSppParsed > 0 ? targetSppParsed : null;
@@ -160,20 +312,6 @@ return Scene.SppmCaustic();
             ProgressIndeterminate = true;
         else
             ProgressPercentage = 0;
-
-        _accum = new AccumulationBuffer(width, height);
-
-        _presenter ??= new WriteableBitmapPresenter(width, height);
-        _presenter.Resize(width, height);
-
-        // Set RenderImage on UI thread before we start background work
-        RenderImage = _presenter.Bitmap;
-
-
-        var built = await TryBuildSceneFromScriptAsync(width, height, token);
-        if (built is null) return;
-
-        var (scene, camera) = built.Value;
 
         try
         {
@@ -214,93 +352,6 @@ return Scene.SppmCaustic();
             ProgressIndeterminate = false;
             ProgressPercentage = 0;
         }
-    }
-
-    private async Task RunSppmAsync(
-    int width, int height,
-    ICamera camera, Scene scene,
-    int threads, CancellationToken token)
-    {
-        //int photons = ParseInt(PhotonsPerIterInput, SppmRenderer.DefaultPhotonsPerIteration);
-        //float radius = ParseFloat(SppmRadiusInput, SppmRenderer.DefaultInitialRadius);
-        //float alpha = ParseFloat(SppmAlphaInput, SppmRenderer.DefaultAlpha);
-
-        //// Clamp / validate
-        //photons = Math.Max(1_000, photons);
-        //radius = Math.Max(0.001f, radius);
-        //alpha = Math.Clamp(alpha, 0.01f, 1f);
-
-        //var pixelStates = SppmRenderer.CreatePixelStates(width, height, radius);
-
-        ////IsRendering = true;
-        //StatsText = "SPPM starting…";
-
-        //try
-        //{
-        //    await Task.Run(async () =>
-        //    {
-        //        await SppmRenderer.RenderLoopAsync(
-        //            width, height, camera, scene,
-        //            pixelStates,
-        //            photonsPerIteration: photons,
-        //            alpha: alpha,
-        //            token: token,
-        //            reportProgress: progress =>
-        //            {
-        //                // Marshal back to UI thread
-        //                App.Current.Dispatcher.BeginInvoke(() =>
-        //                {
-        //                    StatsText = progress.FormatStats();
-        //                    // Reuse the existing progress bar: show radius reduction as a
-        //                    // proxy for "convergence" (from 1 → 0 conceptually, so invert).
-        //                    ProgressPercentage = Math.Clamp(
-        //                        1.0 - progress.AverageRadius / radius, 0.0, 1.0);
-        //                });
-        //            },
-        //            reportFrame: frame =>
-        //            {
-        //                App.Current.Dispatcher.BeginInvoke(() =>
-        //                    _presenter.UpdateFullFrame(frame));
-        //            },
-        //            maxDegreeOfParallelism: threads);
-        //    }, token);
-        //}
-        //catch (OperationCanceledException) { /* normal stop */ }
-        //finally
-        //{
-        //    //IsRendering = false;
-        //}
-    }
-
-    private async Task RunPathTracerAsync(
-    int width, int height,
-    ICamera camera, Scene scene,
-    int threads, CancellationToken token)
-    {
-        //// ... (unchanged existing path-tracer rendering code) ...
-        ////IsRendering = true;
-        //try
-        //{
-        //    await Task.Run(async () =>
-        //    {
-        //        await ProgressiveRenderer.RenderLoopAsync(
-        //            width, height, camera, scene,
-        //            _accum,
-        //            token,
-        //            reportProgress: p => App.Current.Dispatcher.BeginInvoke(() =>
-        //            {
-        //                //StatsText = p.FormatStats();
-        //                //RenderProgress = p.Progress;
-        //            }),
-        //            reportTileUpdated: (x0, y0, w, h) => PostTileUpdate(x0, y0, w, h),
-        //            maxDegreeOfParallelism: threads);
-        //    }, token);
-        //}
-        //catch (OperationCanceledException) { }
-        //finally
-        //{
-        //    //IsRendering = false;
-        //}
     }
 
     private void PostStats(RenderProgress p)
