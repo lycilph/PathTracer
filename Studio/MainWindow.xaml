@@ -7,10 +7,6 @@
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance local:MainViewModel, IsDesignTimeCreatable=True}"
         Title="Path Tracer" Height="800" Width="1200">
-    <Window.Resources>
-        <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
-    </Window.Resources>
-    
     <Grid Margin="12">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="3*"/>
@@ -49,90 +45,6 @@
                     <TextBox Text="{Binding HeightInput}" Width="80"/>
                 </StackPanel>
 
-                <StackPanel Orientation="Horizontal" Margin="0,4,0,4">
-                    <TextBlock Text="Renderer"
-                               Width="120"
-                               VerticalAlignment="Center"/>
-                    <ComboBox Width="130"
-                              SelectedValue="{Binding RendererMode, Mode=TwoWay}"
-                              SelectedValuePath="Content"
-                              VerticalContentAlignment="Center">
-                        <ComboBoxItem Content="PathTracer"/>
-                        <ComboBoxItem Content="SPPM"/>
-                    </ComboBox>
-                </StackPanel>
-                <StackPanel Visibility="{Binding IsSppmMode,
-                          Converter={StaticResource BoolToVisibility}}"
-            Margin="0,0,0,6">
-
-                    <!-- Separator / header -->
-                    <TextBlock Text="── SPPM Settings ──"
-               Foreground="#888"
-               FontSize="11"
-               Margin="0,6,0,4"/>
-
-                    <!-- Photons per iteration -->
-                    <StackPanel Orientation="Horizontal" Margin="0,2,0,2">
-                        <TextBlock Text="Photons / iter"
-                   Width="120"
-                   VerticalAlignment="Center"/>
-                        <TextBox   Width="100"
-                   Text="{Binding PhotonsPerIterInput, UpdateSourceTrigger=PropertyChanged}"
-                   VerticalContentAlignment="Center"/>
-                        <TextBlock Text="(≥ 1 000)"
-                   Foreground="#777"
-                   FontSize="10"
-                   Margin="6,0,0,0"
-                   VerticalAlignment="Center"/>
-                    </StackPanel>
-
-                    <!-- Initial search radius -->
-                    <StackPanel Orientation="Horizontal" Margin="0,2,0,2">
-                        <TextBlock Text="Initial radius"
-                   Width="120"
-                   VerticalAlignment="Center"/>
-                        <TextBox   Width="100"
-                   Text="{Binding SppmRadiusInput, UpdateSourceTrigger=PropertyChanged}"
-                   VerticalContentAlignment="Center"/>
-                        <TextBlock Text="scene units"
-                   Foreground="#777"
-                   FontSize="10"
-                   Margin="6,0,0,0"
-                   VerticalAlignment="Center"/>
-                    </StackPanel>
-
-                    <!-- Alpha (radius-reduction rate) -->
-                    <StackPanel Orientation="Horizontal" Margin="0,2,0,2">
-                        <TextBlock Text="Alpha (α)"
-                   Width="120"
-                   VerticalAlignment="Center"/>
-                        <TextBox   Width="100"
-                   Text="{Binding SppmAlphaInput, UpdateSourceTrigger=PropertyChanged}"
-                   VerticalContentAlignment="Center"/>
-                        <TextBlock Text="0 &lt; α ≤ 1  (rec: 0.7)"
-                   Foreground="#777"
-                   FontSize="10"
-                   Margin="6,0,0,0"
-                   VerticalAlignment="Center"/>
-                    </StackPanel>
-
-                    <!-- Info blurb -->
-                    <Border Background="#1A4466"
-            CornerRadius="4"
-            Padding="8,6"
-            Margin="0,6,0,0">
-                        <TextBlock TextWrapping="Wrap"
-                   FontSize="11"
-                   Foreground="#AACCEE">
-            <Run FontWeight="Bold">SPPM</Run>
-            <Run> converges caustics (e.g. light refracted through glass) that
-path tracing finds extremely rarely.  Use the </Run>
-            <Run FontWeight="Bold">SppmCaustic()</Run>
-            <Run> scene script to see the effect immediately.</Run>
-                        </TextBlock>
-                    </Border>
-                </StackPanel>
-                
                 <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
                     <TextBlock Text="Target SPP" Width="80" VerticalAlignment="Center"/>
                     <TextBox Text="{Binding TargetSppInput}" Width="80" Margin="0,0,8,0"/>

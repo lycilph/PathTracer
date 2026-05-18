@@ -5,7 +5,6 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Core.Camera;
 using Core.Rendering;
-using Core.Rendering.Sppm;
 using Core.Scene;
 using Scripting;
 
@@ -15,6 +14,8 @@ public partial class MainViewModel : ObservableObject
 {
     private readonly SynchronizationContext _ui;
     private readonly ISceneScriptEngine _scriptEngine = new RoslynSceneScriptEngine();
+
+    //private CancellationTokenSource? _externalCts; // optional: if you also want manual CTS control
 
     private WriteableBitmapPresenter? _presenter;
     private AccumulationBuffer? _accum;
@@ -36,8 +37,7 @@ public partial class MainViewModel : ObservableObject
         SceneScript =
 @"// Return a SceneDefinition.
 // Globals: Width, Height, Scene (SceneApi)
-return Scene.SppmCaustic();
-//return Scene.CornellSimple(thinLens: false);
+return Scene.CornellSimple(thinLens: false);
 //return Scene.CornellDefault(tintedGlass: true);
 //return Scene.DOFDefault(thinLens: false);
 //return Scene.MotionBlurDefault(thinLens: false);";
@@ -51,8 +51,8 @@ return Scene.SppmCaustic();
     [ObservableProperty] private string statsText = "";
     [ObservableProperty] private string statusText = "";
 
-    [ObservableProperty] private string widthInput = "400";
-    [ObservableProperty] private string heightInput = "400";
+    [ObservableProperty] private string widthInput = "640";
+    [ObservableProperty] private string heightInput = "360";
     [ObservableProperty] private string targetSppInput = "256";
     [ObservableProperty] private string tileSizeInput = "16";
     [ObservableProperty] private string threadsInput = "";
@@ -64,52 +64,7 @@ return Scene.SppmCaustic();
 
     [ObservableProperty]
     private ObservableCollection<ScriptDiagnosticItem> scriptDiagnostics = [];
-    /// <summary>Currently selected renderer.  Bound to the Mode combo-box in XAML.</summary>
-    public string RendererMode
-    {
-        get => _rendererMode;
-        set
-        {
-            if (SetProperty(ref _rendererMode, value))
-                OnPropertyChanged(nameof(IsSppmMode));
-        }
-    }
 
-    private string _rendererMode = RendererModes.PathTracer;
-
-    /// <summary>True when SPPM is selected; drives Visibility of SPPM parameter panel.</summary>
-    public bool IsSppmMode => _rendererMode == RendererModes.Sppm;
-
-    /// <summary>Photons emitted per SPPM iteration (parsed from UI text-box).</summary>
-    public string PhotonsPerIterInput
-    {
-        get => _photonsPerIterInput;
-        set => SetProperty(ref _photonsPerIterInput, value);
-    }
-    private string _photonsPerIterInput = "200000";
-
-    /// <summary>Initial photon search radius (scene-units).</summary>
-    public string SppmRadiusInput
-    {
-        get => _sppmRadiusInput;
-        set => SetProperty(ref _sppmRadiusInput, value);
-    }
-    private string _sppmRadiusInput = "10";
-
-    /// <summary>SPPM alpha – controls the rate of radius reduction (0 &lt; α ≤ 1).</summary>
-    public string SppmAlphaInput
-    {
-        get => _sppmAlphaInput;
-        set => SetProperty(ref _sppmAlphaInput, value);
-    }
-    private string _sppmAlphaInput = "0.7";
-
-    /// <summary>Renderer-mode constants to avoid magic strings.</summary>
-    public static class RendererModes
-    {
-        public const string PathTracer = "PathTracer";
-        public const string Sppm = "SPPM";
-    }
 
     // A derived property to enable/disable Start in XAML if you want it:
     public bool CanStart => !StartRenderCommand.IsRunning; // IAsyncRelayCommand exposes IsRunning [4](https://learn.microsoft.com/en-us/dotnet/communitytoolkit/mvvm/asyncrelaycommand)
@@ -216,93 +171,6 @@ return Scene.SppmCaustic();
         }
     }
 
-    private async Task RunSppmAsync(
-    int width, int height,
-    ICamera camera, Scene scene,
-    int threads, CancellationToken token)
-    {
-        //int photons = ParseInt(PhotonsPerIterInput, SppmRenderer.DefaultPhotonsPerIteration);
-        //float radius = ParseFloat(SppmRadiusInput, SppmRenderer.DefaultInitialRadius);
-        //float alpha = ParseFloat(SppmAlphaInput, SppmRenderer.DefaultAlpha);
-
-        //// Clamp / validate
-        //photons = Math.Max(1_000, photons);
-        //radius = Math.Max(0.001f, radius);
-        //alpha = Math.Clamp(alpha, 0.01f, 1f);
-
-        //var pixelStates = SppmRenderer.CreatePixelStates(width, height, radius);
-
-        ////IsRendering = true;
-        //StatsText = "SPPM starting…";
-
-        //try
-        //{
-        //    await Task.Run(async () =>
-        //    {
-        //        await SppmRenderer.RenderLoopAsync(
-        //            width, height, camera, scene,
-        //            pixelStates,
-        //            photonsPerIteration: photons,
-        //            alpha: alpha,
-        //            token: token,
-        //            reportProgress: progress =>
-        //            {
-        //                // Marshal back to UI thread
-        //                App.Current.Dispatcher.BeginInvoke(() =>
-        //                {
-        //                    StatsText = progress.FormatStats();
-        //                    // Reuse the existing progress bar: show radius reduction as a
-        //                    // proxy for "convergence" (from 1 → 0 conceptually, so invert).
-        //                    ProgressPercentage = Math.Clamp(
-        //                        1.0 - progress.AverageRadius / radius, 0.0, 1.0);
-        //                });
-        //            },
-        //            reportFrame: frame =>
-        //            {
-        //                App.Current.Dispatcher.BeginInvoke(() =>
-        //                    _presenter.UpdateFullFrame(frame));
-        //            },
-        //            maxDegreeOfParallelism: threads);
-        //    }, token);
-        //}
-        //catch (OperationCanceledException) { /* normal stop */ }
-        //finally
-        //{
-        //    //IsRendering = false;
-        //}
-    }
-
-    private async Task RunPathTracerAsync(
-    int width, int height,
-    ICamera camera, Scene scene,
-    int threads, CancellationToken token)
-    {
-        //// ... (unchanged existing path-tracer rendering code) ...
-        ////IsRendering = true;
-        //try
-        //{
-        //    await Task.Run(async () =>
-        //    {
-        //        await ProgressiveRenderer.RenderLoopAsync(
-        //            width, height, camera, scene,
-        //            _accum,
-        //            token,
-        //            reportProgress: p => App.Current.Dispatcher.BeginInvoke(() =>
-        //            {
-        //                //StatsText = p.FormatStats();
-        //                //RenderProgress = p.Progress;
-        //            }),
-        //            reportTileUpdated: (x0, y0, w, h) => PostTileUpdate(x0, y0, w, h),
-        //            maxDegreeOfParallelism: threads);
-        //    }, token);
-        //}
-        //catch (OperationCanceledException) { }
-        //finally
-        //{
-        //    //IsRendering = false;
-        //}
-    }
-
     private void PostStats(RenderProgress p)
     {
         var sb = new StringBuilder();
@@ -369,12 +237,6 @@ return Scene.SppmCaustic();
     private static int ParseInt(string s, int fallback)
         => int.TryParse(s, out var v) ? v : fallback;
 
-    private static float ParseFloat(string s, float fallback)
-        => float.TryParse(s,
-               System.Globalization.NumberStyles.Float,
-               System.Globalization.CultureInfo.InvariantCulture,
-               out float v) ? v : fallback;
-
     private void CompileScriptForDiagnostics(string code)
     {
         var result = _scriptEngine.TryCompile(code);
@@ -397,5 +259,46 @@ return Scene.SppmCaustic();
             foreach (var it in items)
                 ScriptDiagnostics.Add(it);
         }, null);
+    }
+
+
+    private static bool TryParseDiagnostic(string text, out ScriptDiagnosticItem item)
+    {
+        item = new ScriptDiagnosticItem();
+
+        int p1 = text.IndexOf(' ');
+        if (p1 < 0) return false;
+
+        string severity = text.Substring(0, p1).Trim();
+
+        int p2 = text.IndexOf(' ', p1 + 1);
+        if (p2 < 0) return false;
+
+        string id = text.Substring(p1 + 1, p2 - (p1 + 1)).Trim();
+
+        int lp = text.IndexOf('(', p2 + 1);
+        int rp = text.IndexOf(')', lp + 1);
+        if (lp < 0 || rp < 0) return false;
+
+        string loc = text.Substring(lp + 1, rp - lp - 1); // "line,col"
+        var parts = loc.Split(',');
+        if (parts.Length != 2) return false;
+
+        if (!int.TryParse(parts[0], out int line)) return false;
+        if (!int.TryParse(parts[1], out int col)) return false;
+
+        int colon = text.IndexOf(':', rp + 1);
+        string msg = colon >= 0 ? text.Substring(colon + 1).Trim() : "";
+
+        item = new ScriptDiagnosticItem
+        {
+            Severity = severity,
+            Id = id,
+            Line = line,
+            Column = col,
+            Message = msg
+        };
+
+        return true;
     }
 }
